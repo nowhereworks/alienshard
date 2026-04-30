@@ -1,0 +1,7 @@
+.git
+.github
+.vscode
+coverage.out
+*.test
+*.out
+__wiki

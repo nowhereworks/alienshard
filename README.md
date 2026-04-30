@@ -42,6 +42,7 @@ you browse them directly in a browser.
 Requirements:
 
 - Go `1.26.1`
+- Docker, for container usage
 
 Run:
 
@@ -56,6 +57,39 @@ go run . serve --home-dir /tmp
 ```
 
 By default the server binds to `127.0.0.1:8000`.
+
+## Container
+
+Build the image:
+
+```bash
+docker build -t alienshard .
+```
+
+Run Alien Shard with the current directory mounted as the served data root:
+
+```bash
+docker run --rm \
+  -p 8000:8000 \
+  -v "$PWD:/data" \
+  alienshard
+```
+
+The container serves `/data`, binds to `0.0.0.0:8000`, and writes wiki pages under
+the mounted `/data/__wiki` directory.
+
+The image runs as UID/GID `1000` so files written to common Linux bind mounts are
+owned by the host user instead of root. If your mounted directory is owned by a
+different user, pass `--user "$(id -u):$(id -g)"` to `docker run`.
+
+Override the default container command if needed:
+
+```bash
+docker run --rm \
+  -p 9000:9000 \
+  -v "$PWD:/data" \
+  alienshard serve --home-dir /data --bind 0.0.0.0 --port 9000
+```
 
 ## Command Options
 
