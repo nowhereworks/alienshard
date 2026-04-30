@@ -1,7 +1,6 @@
 # Alien Shard
 
-[![Release Latest](https://github.com/nowhereworks/alienshard/actions/workflows/release-latest.yml/badge.svg?branch=main)](https://github.com/nowhereworks/alienshard/actions/workflows/release-latest.yml)
-[![Release Tag](https://github.com/nowhereworks/alienshard/actions/workflows/release-tag.yml/badge.svg)](https://github.com/nowhereworks/alienshard/actions/workflows/release-tag.yml)
+[![Release](https://github.com/nowhereworks/alienshard/actions/workflows/release.yaml/badge.svg)](https://github.com/nowhereworks/alienshard/actions/workflows/release.yaml)
 [![Latest Testing Release](https://img.shields.io/github/v/release/nowhereworks/alienshard/latest?label=Latest%20Testing%20Release)](https://github.com/nowhereworks/alienshard/releases/tag/latest)
 [![Latest Stable Release](https://img.shields.io/github/v/release/nowhereworks/alienshard?display_name=tag&label=Latest%20Stable%20Release)](https://github.com/nowhereworks/alienshard/releases)
 
@@ -85,13 +84,13 @@ Build the image:
 docker build -t alienshard .
 ```
 
-Run Alien Shard with the current directory mounted as the served data root:
+Run Alien Shard from Docker Hub with the current directory mounted as the served data root:
 
 ```bash
 docker run --rm \
   -p 8000:8000 \
   -v "$PWD:/data" \
-  alienshard
+  nowhereworks/alienshard:latest
 ```
 
 The container serves `/data`, binds to `0.0.0.0:8000`, and writes wiki pages under
@@ -108,8 +107,17 @@ docker run --rm \
   -p 9000:9000 \
   -e PORT=9000 \
   -v "$PWD:/data" \
-  alienshard
+  nowhereworks/alienshard:latest
 ```
+
+Published image tags:
+
+- `latest`: latest stable `v*` release
+- `vX.Y.Z`: exact stable release tag
+- `X.Y.Z`, `X.Y`, `X`: semver aliases for stable releases
+- `edge`: latest successful `main` branch release
+- `main`: latest successful `main` branch release
+- `sha-<shortsha>`: exact `main` branch build
 
 ## Command Options
 
