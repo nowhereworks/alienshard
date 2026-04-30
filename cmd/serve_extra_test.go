@@ -9,6 +9,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/spf13/viper"
 )
 
 func TestServeCommandRejectsInvalidConfiguration(t *testing.T) {
@@ -72,6 +74,65 @@ func TestServeCommandStartsConfiguredServer(t *testing.T) {
 
 	if err := serveCmd.RunE(serveCmd, nil); !errors.Is(err, wantErr) {
 		t.Fatalf("RunE error = %v, want %v", err, wantErr)
+	}
+}
+
+func TestServeCommandUsesEnvironmentConfiguration(t *testing.T) {
+	homeDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(homeDir, "env.txt"), []byte("from env"), 0o644); err != nil {
+		t.Fatalf("os.WriteFile returned error: %v", err)
+	}
+	t.Setenv(homeDirEnv, homeDir)
+	t.Setenv(bindEnv, "127.0.0.1")
+	t.Setenv(portEnv, "12346")
+
+	config := viper.New()
+	configureServeViper(config)
+
+	originalListenAndServe := listenAndServe
+	t.Cleanup(func() { listenAndServe = originalListenAndServe })
+
+	wantErr := errors.New("stop before binding")
+	listenAndServe = func(srv *http.Server) error {
+		if srv.Addr != "127.0.0.1:12346" {
+			t.Fatalf("server address = %q, want %q", srv.Addr, "127.0.0.1:12346")
+		}
+
+		req := httptest.NewRequest(http.MethodGet, "/raw/env.txt", nil)
+		rr := httptest.NewRecorder()
+		srv.Handler.ServeHTTP(rr, req)
+		if rr.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
+		}
+		if strings.TrimSpace(rr.Body.String()) != "from env" {
+			t.Fatalf("body = %q, want %q", rr.Body.String(), "from env")
+		}
+
+		return wantErr
+	}
+
+	if err := runServe(config); !errors.Is(err, wantErr) {
+		t.Fatalf("runServe error = %v, want %v", err, wantErr)
+	}
+}
+
+func TestServeConfigurationAcceptsPrefixedEnvironmentVariables(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("ALIENSHARD_HOME_DIR", homeDir)
+	t.Setenv("ALIENSHARD_BIND", "127.0.0.1")
+	t.Setenv("ALIENSHARD_PORT", "12347")
+
+	config := viper.New()
+	configureServeViper(config)
+
+	if got := config.GetString(homeDirKey); got != homeDir {
+		t.Fatalf("home dir = %q, want %q", got, homeDir)
+	}
+	if got := config.GetString(bindKey); got != "127.0.0.1" {
+		t.Fatalf("bind = %q, want %q", got, "127.0.0.1")
+	}
+	if got := config.GetInt(portKey); got != 12347 {
+		t.Fatalf("port = %d, want %d", got, 12347)
 	}
 }
 

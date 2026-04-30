@@ -20,7 +20,11 @@ COPY --from=build /out/alienshard /usr/local/bin/alienshard
 USER alienshard
 WORKDIR /data
 
+ENV HOME_DIR=/data \
+    BIND=0.0.0.0 \
+    PORT=8000
+
 EXPOSE 8000
 
 ENTRYPOINT ["alienshard"]
-CMD ["serve", "--home-dir", "/data", "--bind", "0.0.0.0", "--port", "8000"]
+CMD ["serve"]

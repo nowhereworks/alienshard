@@ -26,6 +26,12 @@ const (
 	defaultPort     = 8000
 	wikiDirName     = "__wiki"
 	autoIndexMarker = "<!-- alienshard:autoindex v1 -->"
+	homeDirKey      = "home_dir"
+	bindKey         = "bind"
+	portKey         = "port"
+	homeDirEnv      = "HOME_DIR"
+	bindEnv         = "BIND"
+	portEnv         = "PORT"
 )
 
 var serveViper = viper.New()
@@ -36,34 +42,38 @@ var serveCmd = &cobra.Command{
 	Use:   "serve",
 	Short: "Serve static files over HTTP",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		bind := strings.TrimSpace(serveViper.GetString("bind"))
-		if net.ParseIP(bind) == nil {
-			return fmt.Errorf("invalid --bind value %q: must be a valid IP address", bind)
-		}
-
-		port := serveViper.GetInt("port")
-		if port < 1 || port > 65535 {
-			return fmt.Errorf("invalid --port value %d: must be in range 1-65535", port)
-		}
-
-		homeDir, err := resolveHomeDir(serveViper.GetString("home_dir"))
-		if err != nil {
-			return err
-		}
-		wikiDir := filepath.Join(homeDir, wikiDirName)
-
-		addr := net.JoinHostPort(bind, strconv.Itoa(port))
-		handler := newMountedHandler(homeDir, wikiDir)
-
-		srv := &http.Server{
-			Addr:              addr,
-			Handler:           handler,
-			ReadHeaderTimeout: 5 * time.Second,
-		}
-
-		log.Printf("Serving %s at http://%s", homeDir, addr)
-		return listenAndServe(srv)
+		return runServe(serveViper)
 	},
+}
+
+func runServe(config *viper.Viper) error {
+	bind := strings.TrimSpace(config.GetString(bindKey))
+	if net.ParseIP(bind) == nil {
+		return fmt.Errorf("invalid --bind value %q: must be a valid IP address", bind)
+	}
+
+	port := config.GetInt(portKey)
+	if port < 1 || port > 65535 {
+		return fmt.Errorf("invalid --port value %d: must be in range 1-65535", port)
+	}
+
+	homeDir, err := resolveHomeDir(config.GetString(homeDirKey))
+	if err != nil {
+		return err
+	}
+	wikiDir := filepath.Join(homeDir, wikiDirName)
+
+	addr := net.JoinHostPort(bind, strconv.Itoa(port))
+	handler := newMountedHandler(homeDir, wikiDir)
+
+	srv := &http.Server{
+		Addr:              addr,
+		Handler:           handler,
+		ReadHeaderTimeout: 5 * time.Second,
+	}
+
+	log.Printf("Serving %s at http://%s", homeDir, addr)
+	return listenAndServe(srv)
 }
 
 func newMountedHandler(rawRoot, wikiRoot string) http.Handler {
@@ -445,18 +455,30 @@ func init() {
 	serveCmd.Flags().String("bind", defaultBind, "IP address to bind")
 	serveCmd.Flags().Int("port", defaultPort, "TCP port to bind")
 
-	mustBindFlag("home_dir", "home-dir")
-	mustBindFlag("bind", "bind")
-	mustBindFlag("port", "port")
-
-	serveViper.SetEnvPrefix("alienshard")
-	serveViper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
-	serveViper.AutomaticEnv()
-
-	serveViper.SetDefault("bind", defaultBind)
-	serveViper.SetDefault("port", defaultPort)
+	mustBindFlag(homeDirKey, "home-dir")
+	mustBindFlag(bindKey, "bind")
+	mustBindFlag(portKey, "port")
+	configureServeViper(serveViper)
 
 	rootCmd.AddCommand(serveCmd)
+}
+
+func configureServeViper(config *viper.Viper) {
+	config.SetEnvPrefix("alienshard")
+	config.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
+	mustBindEnv(config, homeDirKey, homeDirEnv, "ALIENSHARD_HOME_DIR")
+	mustBindEnv(config, bindKey, bindEnv, "ALIENSHARD_BIND")
+	mustBindEnv(config, portKey, portEnv, "ALIENSHARD_PORT")
+	config.AutomaticEnv()
+
+	config.SetDefault(bindKey, defaultBind)
+	config.SetDefault(portKey, defaultPort)
+}
+
+func mustBindEnv(config *viper.Viper, key string, envVars ...string) {
+	if err := config.BindEnv(append([]string{key}, envVars...)...); err != nil {
+		panic(err)
+	}
 }
 
 func mustBindFlag(key, flagName string) {

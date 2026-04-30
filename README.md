@@ -87,21 +87,22 @@ The image runs as UID/GID `1000` so files written to common Linux bind mounts ar
 owned by the host user instead of root. If your mounted directory is owned by a
 different user, pass `--user "$(id -u):$(id -g)"` to `docker run`.
 
-Override the default container command if needed:
+Override container options with environment variables:
 
 ```bash
 docker run --rm \
   -p 9000:9000 \
+  -e PORT=9000 \
   -v "$PWD:/data" \
-  alienshard serve --home-dir /data --bind 0.0.0.0 --port 9000
+  alienshard
 ```
 
 ## Command Options
 
 ```text
---home-dir string   Directory to serve (defaults to current directory)
---bind string       IP address to bind (default "127.0.0.1")
---port int          TCP port to bind (default 8000)
+--home-dir string   Directory to serve (env HOME_DIR, default current directory)
+--bind string       IP address to bind (env BIND, default "127.0.0.1")
+--port int          TCP port to bind (env PORT, default 8000)
 ```
 
 ## API Examples
