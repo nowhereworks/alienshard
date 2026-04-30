@@ -1,0 +1,106 @@
+# Alienshard
+
+Use this skill when the user asks to use Alienshard, shared wiki notes, agent handoff notes, or workspace files over HTTP.
+
+Alienshard exposes a local HTTP interface for reading raw workspace files and reading or writing Markdown wiki pages. Do not guess a server URL. Resolve it with the workflow below before using Alienshard.
+
+## Resolve The URL
+
+Resolve the Alienshard base URL in this order:
+
+1. Use the `ALIENSHARD_URL` environment variable when present.
+2. Search the workspace `AGENTS.md` for an explicit Alienshard URL.
+3. Fall back to `http://127.0.0.1:8000`.
+
+Only accept explicit `AGENTS.md` forms such as:
+
+```md
+ALIENSHARD_URL=http://127.0.0.1:8000
+Alienshard URL: http://127.0.0.1:8000
+alienshard: http://127.0.0.1:8000
+```
+
+If multiple entries are present, prefer the first explicit `ALIENSHARD_URL=` entry. Otherwise use the first explicit Alienshard URL.
+
+Normalize the selected URL:
+
+- Add `http://` if no scheme is present.
+- Remove trailing slashes.
+- Reject empty or malformed values.
+- Do not invent hostnames beyond the fallback.
+
+You can use the bundled helper:
+
+```bash
+./skill/scripts/resolve-alienshard-url.sh
+```
+
+## Verify Reachability
+
+Probe Alienshard before relying on it:
+
+```bash
+ALIENSHARD_URL="$(./skill/scripts/resolve-alienshard-url.sh)"
+curl -fsS "$ALIENSHARD_URL/wiki/index.md"
+```
+
+If that fails, optionally probe the raw mount:
+
+```bash
+curl -fsS "$ALIENSHARD_URL/raw/"
+```
+
+If both fail, report that Alienshard was not reachable. Include the resolved URL and where it came from if known.
+
+## Endpoints
+
+- `GET /raw/<path>` reads files from the served raw root.
+- `GET /wiki/<path>.md` reads wiki Markdown.
+- `PUT /wiki/<path>.md` creates or updates wiki Markdown.
+- `/raw/__wiki` and `/raw/__wiki/*` are intentionally blocked.
+- Wiki files are stored under the server's `__wiki` directory, but clients should access them via `/wiki/*`.
+
+## Read Examples
+
+Read a workspace file:
+
+```bash
+ALIENSHARD_URL="$(./skill/scripts/resolve-alienshard-url.sh)"
+curl -fsS "$ALIENSHARD_URL/raw/README.md"
+```
+
+Read a wiki page:
+
+```bash
+ALIENSHARD_URL="$(./skill/scripts/resolve-alienshard-url.sh)"
+curl -fsS "$ALIENSHARD_URL/wiki/index.md"
+```
+
+## Write Examples
+
+Create or update a wiki Markdown page:
+
+```bash
+ALIENSHARD_URL="$(./skill/scripts/resolve-alienshard-url.sh)"
+curl -fsS -X PUT \
+  -H 'Content-Type: text/markdown; charset=utf-8' \
+  --data-binary @note.md \
+  "$ALIENSHARD_URL/wiki/path/to/note.md"
+```
+
+Rules for writes:
+
+- Only write `.md` paths.
+- Do not use traversal-like paths such as `../secret.md`.
+- Treat HTTP `201` as created and HTTP `200` as updated.
+- Prefer writing durable notes, investigation findings, and agent handoff context to `/wiki/*`.
+- Do not write secrets, credentials, tokens, or private environment values.
+
+## Failure Handling
+
+When Alienshard cannot be reached:
+
+- State the resolved URL.
+- State whether it came from `ALIENSHARD_URL`, `AGENTS.md`, or fallback if known.
+- Include the failed probe endpoint.
+- Do not silently keep trying alternate guessed hosts.
