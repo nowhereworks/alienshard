@@ -1,5 +1,10 @@
 # Alien Shard
 
+[![Release Latest](https://github.com/nowhereworks/alienshard/actions/workflows/release-latest.yml/badge.svg?branch=main)](https://github.com/nowhereworks/alienshard/actions/workflows/release-latest.yml)
+[![Release Tag](https://github.com/nowhereworks/alienshard/actions/workflows/release-tag.yml/badge.svg)](https://github.com/nowhereworks/alienshard/actions/workflows/release-tag.yml)
+[![Latest Testing Release](https://img.shields.io/github/v/release/nowhereworks/alienshard/latest?label=Latest%20Testing%20Release)](https://github.com/nowhereworks/alienshard/releases/tag/latest)
+[![Latest Stable Release](https://img.shields.io/github/v/release/nowhereworks/alienshard?display_name=tag&label=Latest%20Stable%20Release)](https://github.com/nowhereworks/alienshard/releases)
+
 <p align="center">
   <img src="docs/alien-shard.png" alt="Alien Shard logo" width="520" />
 </p>

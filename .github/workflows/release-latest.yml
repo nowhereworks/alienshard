@@ -114,6 +114,7 @@ jobs:
       - name: Replace latest release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: |
           if gh release view latest >/dev/null 2>&1; then
             gh release delete latest --cleanup-tag -y
