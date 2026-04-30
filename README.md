@@ -1,0 +1,125 @@
+# Alien Shard
+
+<p align="center">
+  <img src="docs/alien-shard.png" alt="Alien Shard logo" width="520" />
+</p>
+
+Alien Shard is a lightweight Go server for mixed human + machine Markdown workflows.
+
+- Humans (browser user-agents) get rendered HTML for `.md` files.
+- Machines (agents, curl, scripts) get raw Markdown for `.md` files.
+- One process serves immutable raw sources and a writable wiki layer.
+
+## Why
+
+Most tooling makes you pick one mode: static site for humans, API output for machines.
+Alien Shard keeps both in the same place so an LLM can write and maintain wiki pages while
+you browse them directly in a browser.
+
+## Features
+
+- Explicit dual mounts:
+  - `/raw/*` -> raw source tree (`--home-dir` or current directory)
+  - `/wiki/*` -> wiki tree at `rawRoot/__wiki`
+- Markdown rendering policy on both mounts:
+  - `User-Agent` contains `chrome` or `firefox` -> rendered HTML
+  - otherwise -> raw Markdown
+- Wiki write API:
+  - `PUT /wiki/<path>.md` creates/updates markdown files
+  - parent directories are created automatically
+  - returns `201` on create, `200` on update
+- Auto-managed wiki index:
+  - generated marker: `<!-- alienshard:autoindex v1 -->`
+  - `index.md` is auto-created when missing
+  - refreshed on every successful wiki write when marker is present
+  - manual `index.md` (no marker) is never overwritten
+- Safety:
+  - traversal-like wiki write paths are rejected
+  - `/raw/__wiki` is blocked with `404` (wiki is only reachable via `/wiki/*`)
+
+## Quick Start
+
+Requirements:
+
+- Go `1.26.1`
+
+Run:
+
+```bash
+go run . serve
+```
+
+Serve a specific directory:
+
+```bash
+go run . serve --home-dir /tmp
+```
+
+By default the server binds to `127.0.0.1:8000`.
+
+## Command Options
+
+```text
+--home-dir string   Directory to serve (defaults to current directory)
+--bind string       IP address to bind (default "127.0.0.1")
+--port int          TCP port to bind (default 8000)
+```
+
+## API Examples
+
+Assume server is running on `http://127.0.0.1:8000`.
+
+Read raw markdown as a machine client:
+
+```bash
+curl -sS http://127.0.0.1:8000/raw/notes.md
+```
+
+Write a wiki page:
+
+```bash
+curl -i -X PUT \
+  -H "Content-Type: text/markdown" \
+  --data-binary "# Project Notes\n\nInitial draft." \
+  http://127.0.0.1:8000/wiki/project/notes.md
+```
+
+Read wiki index (auto-created if missing):
+
+```bash
+curl -sS http://127.0.0.1:8000/wiki/index.md
+```
+
+Open these URLs in a browser to view rendered HTML:
+
+- `http://127.0.0.1:8000/raw/.../*.md`
+- `http://127.0.0.1:8000/wiki/.../*.md`
+
+## LLM Wiki Pattern
+
+This project is designed to support persistent, LLM-maintained wiki workflows.
+
+Attribution: the LLM Wiki concept is from Andrej Karpathy:
+`https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f`
+
+- Concept document: `docs/llm-wiki.md`
+- Raw layer: `/raw/*`
+- Writable wiki layer: `/wiki/*`
+
+## Development
+
+Run tests:
+
+```bash
+go test ./...
+```
+
+Show CLI help:
+
+```bash
+go run . serve --help
+```
+
+## Credits
+
+- LLM Wiki concept: Andrej Karpathy, `https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f`
