@@ -30,6 +30,8 @@ const (
 
 var serveViper = viper.New()
 
+var listenAndServe = (*http.Server).ListenAndServe
+
 var serveCmd = &cobra.Command{
 	Use:   "serve",
 	Short: "Serve static files over HTTP",
@@ -60,7 +62,7 @@ var serveCmd = &cobra.Command{
 		}
 
 		log.Printf("Serving %s at http://%s", homeDir, addr)
-		return srv.ListenAndServe()
+		return listenAndServe(srv)
 	},
 }
 
