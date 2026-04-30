@@ -115,8 +115,14 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release delete latest --cleanup-tag -y || true
-          gh api -X DELETE "repos/${{ github.repository }}/git/refs/tags/latest" || true
+          if gh release view latest >/dev/null 2>&1; then
+            gh release delete latest --cleanup-tag -y
+          fi
+
+          if gh api "repos/${{ github.repository }}/git/ref/tags/latest" >/dev/null 2>&1; then
+            gh api -X DELETE "repos/${{ github.repository }}/git/refs/tags/latest"
+          fi
+
           gh release create latest \
             dist/* \
             --target "${GITHUB_SHA}" \
