@@ -84,13 +84,13 @@ Build the image:
 docker build -t alienshard .
 ```
 
-Run Alien Shard from Docker Hub with the current directory mounted as the served data root:
+Run the latest published `main` branch image from Docker Hub with the current directory mounted as the served data root:
 
 ```bash
 docker run --rm \
   -p 8000:8000 \
   -v "$PWD:/data" \
-  nowhereworks/alienshard:latest
+  nowhereworks/alienshard:edge
 ```
 
 The container serves `/data`, binds to `0.0.0.0:8000`, and writes wiki pages under
@@ -107,8 +107,10 @@ docker run --rm \
   -p 9000:9000 \
   -e PORT=9000 \
   -v "$PWD:/data" \
-  nowhereworks/alienshard:latest
+  nowhereworks/alienshard:edge
 ```
+
+Use `nowhereworks/alienshard:latest` after a stable `v*` release has published.
 
 Published image tags:
 
