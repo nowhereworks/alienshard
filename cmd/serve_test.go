@@ -292,6 +292,12 @@ func TestWikiIndexGeneratedWhenMissingOnGet(t *testing.T) {
 
 	rawRoot := t.TempDir()
 	wikiRoot := filepath.Join(rawRoot, wikiDirName)
+	if err := os.MkdirAll(wikiRoot, 0o755); err != nil {
+		t.Fatalf("os.MkdirAll returned error: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(wikiRoot, "page.md"), []byte("# Page"), 0o644); err != nil {
+		t.Fatalf("os.WriteFile returned error: %v", err)
+	}
 	handler := newMountedHandler(rawRoot, wikiRoot)
 
 	req := httptest.NewRequest(http.MethodGet, "/wiki/index.md", nil)
@@ -309,6 +315,45 @@ func TestWikiIndexGeneratedWhenMissingOnGet(t *testing.T) {
 	}
 	if !strings.HasPrefix(string(indexData), autoIndexMarker) {
 		t.Fatalf("expected generated index marker, got %q", string(indexData))
+	}
+	if !strings.Contains(string(indexData), "- [page](/wiki/page.md)") {
+		t.Fatalf("expected generated index to link through /wiki, got %q", string(indexData))
+	}
+	if rr.Body.String() != string(indexData) {
+		t.Fatalf("response body = %q, want generated index %q", rr.Body.String(), string(indexData))
+	}
+}
+
+func TestWikiIndexRefreshedWhenManagedOnGet(t *testing.T) {
+	t.Parallel()
+
+	rawRoot := t.TempDir()
+	wikiRoot := filepath.Join(rawRoot, wikiDirName)
+	if err := os.MkdirAll(wikiRoot, 0o755); err != nil {
+		t.Fatalf("os.MkdirAll returned error: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(wikiRoot, "page.md"), []byte("# Page"), 0o644); err != nil {
+		t.Fatalf("os.WriteFile returned error: %v", err)
+	}
+	staleIndex := autoIndexMarker + "\n\n# Index\n\n- [page](page.md)\n"
+	if err := os.WriteFile(filepath.Join(wikiRoot, "index.md"), []byte(staleIndex), 0o644); err != nil {
+		t.Fatalf("os.WriteFile returned error: %v", err)
+	}
+
+	handler := newMountedHandler(rawRoot, wikiRoot)
+	req := httptest.NewRequest(http.MethodGet, "/wiki/index.md", nil)
+	req.Header.Set("User-Agent", "curl/8.7.1")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
+	}
+	if strings.Contains(rr.Body.String(), "- [page](page.md)") {
+		t.Fatalf("expected stale relative link to be removed, got %q", rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), "- [page](/wiki/page.md)") {
+		t.Fatalf("expected refreshed /wiki link, got %q", rr.Body.String())
 	}
 }
 

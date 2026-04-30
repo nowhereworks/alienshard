@@ -36,7 +36,7 @@ you browse them directly in a browser.
 - Auto-managed wiki index:
   - generated marker: `<!-- alienshard:autoindex v1 -->`
   - `index.md` is auto-created when missing
-  - refreshed on every successful wiki write when marker is present
+  - refreshed on read and after every successful wiki write when marker is present
   - manual `index.md` (no marker) is never overwritten
 - Safety:
   - traversal-like wiki write paths are rejected

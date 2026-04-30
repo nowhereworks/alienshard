@@ -108,7 +108,7 @@ func newMountedHandler(rawRoot, wikiRoot string) http.Handler {
 			}
 
 			if strippedPath == "/index.md" {
-				if err := ensureGeneratedIndexIfMissing(wikiRoot); err != nil {
+				if err := refreshGeneratedIndex(wikiRoot); err != nil {
 					http.Error(w, "failed to generate index", http.StatusInternalServerError)
 					return
 				}
