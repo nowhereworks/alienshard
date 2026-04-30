@@ -406,7 +406,7 @@ func collectWikiMarkdownPaths(wikiRoot string) ([]string, error) {
 		if isRootWikiDirPath(relPath) {
 			return nil
 		}
-		if relPath == "index.md" {
+		if strings.EqualFold(filepath.Base(relPath), "index.md") {
 			return nil
 		}
 

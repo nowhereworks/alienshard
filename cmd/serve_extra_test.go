@@ -451,9 +451,10 @@ func TestIndexHelpers(t *testing.T) {
 		t.Fatalf("os.MkdirAll returned error: %v", err)
 	}
 	for path, body := range map[string]string{
-		"nested/b.md": "# B",
-		"a.md":        "# A",
-		"note.txt":    "ignore",
+		"nested/b.md":     "# B",
+		"nested/index.md": "# Nested Index",
+		"a.md":            "# A",
+		"note.txt":        "ignore",
 	} {
 		if err := os.WriteFile(filepath.Join(wikiRoot, filepath.FromSlash(path)), []byte(body), 0o644); err != nil {
 			t.Fatalf("os.WriteFile(%q) returned error: %v", path, err)
