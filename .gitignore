@@ -27,4 +27,26 @@ go.work
 
 # End of https://www.toptal.com/developers/gitignore/api/go
 
+# Local/editor state
+.vscode/
+
+# Local runtime data and generated artifacts
+__wiki/
+coverage.out
+dist/
+*.log
+
+# Secrets and private configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+credentials.json
+secrets.*
+
 AGENTS.md
