@@ -36,11 +36,13 @@ you browse them directly in a browser.
 - Auto-managed wiki index:
   - generated marker: `<!-- alienshard:autoindex v1 -->`
   - `index.md` is auto-created when missing
+  - `/wiki`, `/wiki/`, and `/wiki/index.md` serve the managed wiki index
   - refreshed on read and after every successful wiki write when marker is present
   - manual `index.md` (no marker) is never overwritten
 - Safety:
   - traversal-like wiki write paths are rejected
   - `/raw/__wiki` is blocked with `404` (wiki is only reachable via `/wiki/*`)
+  - `/raw` directory listings skip root-level `__wiki`
 
 ## Quick Start
 
@@ -62,6 +64,18 @@ go run . serve --home-dir /tmp
 ```
 
 By default the server binds to `127.0.0.1:8000`.
+
+Run the wiki root smoke test against a fresh local build on port `8001`:
+
+```bash
+make smoke-wiki
+```
+
+Run the same smoke test against an already running server:
+
+```bash
+ALIENSHARD_URL=http://127.0.0.1:8001 make smoke-wiki
+```
 
 ## Container
 
@@ -127,7 +141,7 @@ curl -i -X PUT \
 Read wiki index (auto-created if missing):
 
 ```bash
-curl -sS http://127.0.0.1:8000/wiki/index.md
+curl -sS http://127.0.0.1:8000/wiki
 ```
 
 Open these URLs in a browser to view rendered HTML:

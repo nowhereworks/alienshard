@@ -77,7 +77,7 @@ func runServe(config *viper.Viper) error {
 }
 
 func newMountedHandler(rawRoot, wikiRoot string) http.Handler {
-	rawFileSystem := http.Dir(rawRoot)
+	rawFileSystem := rootFilteredFileSystem{fileSystem: http.Dir(rawRoot), hiddenName: wikiDirName}
 	rawFileServer := http.FileServer(rawFileSystem)
 	wikiFileSystem := http.Dir(wikiRoot)
 	wikiFileServer := http.FileServer(wikiFileSystem)
@@ -106,6 +106,9 @@ func newMountedHandler(rawRoot, wikiRoot string) http.Handler {
 				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 				return
 			}
+			if strippedPath == "/" {
+				strippedPath = "/index.md"
+			}
 
 			if strippedPath == "/index.md" {
 				if err := refreshGeneratedIndex(wikiRoot); err != nil {
@@ -122,10 +125,55 @@ func newMountedHandler(rawRoot, wikiRoot string) http.Handler {
 	})
 }
 
+type rootFilteredFileSystem struct {
+	fileSystem http.FileSystem
+	hiddenName string
+}
+
+func (fileSystem rootFilteredFileSystem) Open(name string) (http.File, error) {
+	cleanName := filepath.ToSlash(filepath.Clean("/" + name))
+	hiddenRoot := "/" + fileSystem.hiddenName
+	if cleanName == hiddenRoot || strings.HasPrefix(cleanName, hiddenRoot+"/") {
+		return nil, fs.ErrNotExist
+	}
+
+	file, err := fileSystem.fileSystem.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	if cleanName == "/" {
+		return rootFilteredFile{File: file, hiddenName: fileSystem.hiddenName}, nil
+	}
+
+	return file, nil
+}
+
+type rootFilteredFile struct {
+	http.File
+	hiddenName string
+}
+
+func (file rootFilteredFile) Readdir(count int) ([]fs.FileInfo, error) {
+	entries, err := file.File.Readdir(count)
+	if len(entries) == 0 {
+		return entries, err
+	}
+
+	filtered := entries[:0]
+	for _, entry := range entries {
+		if entry.Name() == file.hiddenName {
+			continue
+		}
+		filtered = append(filtered, entry)
+	}
+
+	return filtered, err
+}
+
 func serveMountedPath(
 	w http.ResponseWriter,
 	r *http.Request,
-	fileSystem http.Dir,
+	fileSystem http.FileSystem,
 	fileServer http.Handler,
 	strippedPath string,
 ) {
@@ -434,7 +482,7 @@ func isBrowserUserAgent(ua string) bool {
 	return strings.Contains(lower, "chrome") || strings.Contains(lower, "firefox")
 }
 
-func readMarkdownFile(fileSystem http.Dir, requestPath string) ([]byte, bool, error) {
+func readMarkdownFile(fileSystem http.FileSystem, requestPath string) ([]byte, bool, error) {
 	file, err := fileSystem.Open(requestPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {

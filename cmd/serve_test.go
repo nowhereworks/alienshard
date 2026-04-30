@@ -205,6 +205,42 @@ func TestRawWikiSubtreeBlocked(t *testing.T) {
 	}
 }
 
+func TestRawDirectoryListingSkipsWikiRoot(t *testing.T) {
+	t.Parallel()
+
+	rawRoot := t.TempDir()
+	wikiRoot := filepath.Join(rawRoot, wikiDirName)
+	if err := os.MkdirAll(wikiRoot, 0o755); err != nil {
+		t.Fatalf("os.MkdirAll returned error: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(rawRoot, "public.txt"), []byte("public"), 0o644); err != nil {
+		t.Fatalf("os.WriteFile returned error: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(wikiRoot, "secret.md"), []byte("secret"), 0o644); err != nil {
+		t.Fatalf("os.WriteFile returned error: %v", err)
+	}
+
+	handler := newMountedHandler(rawRoot, wikiRoot)
+	for _, path := range []string{"/raw", "/raw/"} {
+		path := path
+		t.Run(path, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, path, nil)
+			rr := httptest.NewRecorder()
+			handler.ServeHTTP(rr, req)
+
+			if rr.Code != http.StatusOK {
+				t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
+			}
+			if !strings.Contains(rr.Body.String(), `href="public.txt"`) {
+				t.Fatalf("expected public file in raw listing, got %q", rr.Body.String())
+			}
+			if strings.Contains(rr.Body.String(), `href="__wiki/"`) {
+				t.Fatalf("expected raw listing to skip %s, got %q", wikiDirName, rr.Body.String())
+			}
+		})
+	}
+}
+
 func TestUnknownPathReturnsNotFound(t *testing.T) {
 	t.Parallel()
 
@@ -321,6 +357,59 @@ func TestWikiIndexGeneratedWhenMissingOnGet(t *testing.T) {
 	}
 	if rr.Body.String() != string(indexData) {
 		t.Fatalf("response body = %q, want generated index %q", rr.Body.String(), string(indexData))
+	}
+}
+
+func TestWikiRootServesGeneratedIndex(t *testing.T) {
+	t.Parallel()
+
+	for _, path := range []string{"/wiki", "/wiki/"} {
+		path := path
+		t.Run(path, func(t *testing.T) {
+			t.Parallel()
+
+			rawRoot := t.TempDir()
+			wikiRoot := filepath.Join(rawRoot, wikiDirName)
+			if err := os.MkdirAll(filepath.Join(wikiRoot, "nested"), 0o755); err != nil {
+				t.Fatalf("os.MkdirAll returned error: %v", err)
+			}
+			if err := os.WriteFile(filepath.Join(wikiRoot, "hello-world.md"), []byte("# Hello World"), 0o644); err != nil {
+				t.Fatalf("os.WriteFile returned error: %v", err)
+			}
+			if err := os.WriteFile(filepath.Join(wikiRoot, "nested", "index.md"), []byte("# Nested Index"), 0o644); err != nil {
+				t.Fatalf("os.WriteFile returned error: %v", err)
+			}
+
+			handler := newMountedHandler(rawRoot, wikiRoot)
+			req := httptest.NewRequest(http.MethodGet, path, nil)
+			req.Header.Set("User-Agent", "Mozilla/5.0 Chrome/126.0")
+			rr := httptest.NewRecorder()
+			handler.ServeHTTP(rr, req)
+
+			if rr.Code != http.StatusOK {
+				t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
+			}
+			if got := rr.Header().Get("Content-Type"); got != "text/html; charset=utf-8" {
+				t.Fatalf("content-type = %q, want %q", got, "text/html; charset=utf-8")
+			}
+			if !strings.Contains(rr.Body.String(), `href="/wiki/hello-world.md"`) {
+				t.Fatalf("expected generated /wiki link, got %q", rr.Body.String())
+			}
+			if strings.Contains(rr.Body.String(), `href="hello-world.md"`) {
+				t.Fatalf("expected no file server relative link, got %q", rr.Body.String())
+			}
+			if strings.Contains(rr.Body.String(), `href="/wiki/index.md"`) || strings.Contains(rr.Body.String(), `href="/wiki/nested/index.md"`) {
+				t.Fatalf("expected no autoindex self-links, got %q", rr.Body.String())
+			}
+
+			pageReq := httptest.NewRequest(http.MethodGet, "/wiki/hello-world.md", nil)
+			pageReq.Header.Set("User-Agent", "Mozilla/5.0 Chrome/126.0")
+			pageRR := httptest.NewRecorder()
+			handler.ServeHTTP(pageRR, pageReq)
+			if pageRR.Code != http.StatusOK {
+				t.Fatalf("linked page status = %d, want %d", pageRR.Code, http.StatusOK)
+			}
+		})
 	}
 }
 

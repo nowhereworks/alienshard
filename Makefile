@@ -1,4 +1,4 @@
-.PHONY: serve docker-build build install
+.PHONY: serve docker-build build install smoke-wiki
 
 serve:
 	alienshard serve
@@ -11,3 +11,6 @@ build:
 
 install: build
 	go install .
+
+smoke-wiki:
+	PORT=8001 scripts/smoke-wiki-root.sh
