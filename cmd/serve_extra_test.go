@@ -499,6 +499,36 @@ func TestIndexHelpers(t *testing.T) {
 	}
 }
 
+func TestCollectWikiMarkdownPathsSkipsRootWikiDir(t *testing.T) {
+	t.Parallel()
+
+	wikiRoot := t.TempDir()
+	for path, body := range map[string]string{
+		"a.md":                 "# A",
+		"__wiki/hidden.md":     "# Hidden",
+		"__wikia/visible.md":   "# Visible",
+		"notes/__wiki/page.md": "# Nested name",
+	} {
+		filePath := filepath.Join(wikiRoot, filepath.FromSlash(path))
+		if err := os.MkdirAll(filepath.Dir(filePath), 0o755); err != nil {
+			t.Fatalf("os.MkdirAll(%q) returned error: %v", filepath.Dir(filePath), err)
+		}
+		if err := os.WriteFile(filePath, []byte(body), 0o644); err != nil {
+			t.Fatalf("os.WriteFile(%q) returned error: %v", path, err)
+		}
+	}
+
+	pages, err := collectWikiMarkdownPaths(wikiRoot)
+	if err != nil {
+		t.Fatalf("collectWikiMarkdownPaths returned error: %v", err)
+	}
+
+	wantPages := []string{"__wikia/visible.md", "a.md", "notes/__wiki/page.md"}
+	if !reflect.DeepEqual(pages, wantPages) {
+		t.Fatalf("pages = %#v, want %#v", pages, wantPages)
+	}
+}
+
 func TestResolveHomeDirReportsStatError(t *testing.T) {
 	t.Parallel()
 

@@ -387,19 +387,25 @@ func collectWikiMarkdownPaths(wikiRoot string) ([]string, error) {
 		if walkErr != nil {
 			return walkErr
 		}
-		if entry.IsDir() {
-			return nil
-		}
-		if strings.ToLower(filepath.Ext(entry.Name())) != ".md" {
-			return nil
-		}
 
 		relPath, err := filepath.Rel(wikiRoot, currentPath)
 		if err != nil {
 			return err
 		}
-
 		relPath = filepath.ToSlash(relPath)
+
+		if entry.IsDir() {
+			if isRootWikiDirPath(relPath) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if strings.ToLower(filepath.Ext(entry.Name())) != ".md" {
+			return nil
+		}
+		if isRootWikiDirPath(relPath) {
+			return nil
+		}
 		if relPath == "index.md" {
 			return nil
 		}
@@ -413,6 +419,10 @@ func collectWikiMarkdownPaths(wikiRoot string) ([]string, error) {
 
 	sort.Strings(pages)
 	return pages, nil
+}
+
+func isRootWikiDirPath(relPath string) bool {
+	return relPath == wikiDirName || strings.HasPrefix(relPath, wikiDirName+"/")
 }
 
 func isMarkdownPath(requestPath string) bool {
