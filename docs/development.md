@@ -110,6 +110,34 @@ Branch and tag behavior:
 
 Docker Hub publishing requires GitHub secrets `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN`.
 
+## Documentation Site
+
+The documentation site is built with MkDocs Material and published to GitHub Pages by `.github/workflows/docs.yaml`.
+
+Create a local documentation virtual environment and install dependencies:
+
+```bash
+python -m venv .venv-docs
+.venv-docs/bin/python -m pip install -r requirements-docs.txt
+```
+
+Build the site locally:
+
+```bash
+.venv-docs/bin/python -m mkdocs build --strict
+```
+
+Use a virtual environment because some systems block global pip installs for externally managed Python installations.
+
+Automatic publishing runs only for pushes to `main` when documentation-related files change:
+
+- `docs/**`
+- `mkdocs.yml`
+- `requirements-docs.txt`
+- `.github/workflows/docs.yaml`
+
+GitHub Pages must be configured in the repository settings with source set to GitHub Actions.
+
 ## Documentation Conventions
 
 `README.md` is the all-around quickstarter. Put deeper reference material in `docs/`.

@@ -1,0 +1,22 @@
+site_name: Alien Shard
+site_description: Lightweight Go server for mixed human and machine Markdown workflows.
+site_url: https://nowhereworks.github.io/alienshard/
+repo_url: https://github.com/nowhereworks/alienshard
+repo_name: nowhereworks/alienshard
+docs_dir: docs
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+
+nav:
+  - Home: index.md
+  - HTTP API: http-api.md
+  - Configuration: configuration.md
+  - Wiki: wiki.md
+  - Development: development.md
+  - LLM Wiki: llm-wiki.md
+  - Search Roadmap: search.md

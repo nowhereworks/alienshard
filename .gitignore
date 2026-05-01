@@ -34,7 +34,11 @@ go.work
 __wiki/
 coverage.out
 dist/
+site/
 *.log
+
+# Local Python documentation environment
+.venv-docs/
 
 # Secrets and private configuration
 .env

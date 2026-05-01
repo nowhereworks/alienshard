@@ -100,6 +100,7 @@ Legacy `ALIENSHARD_HOME_DIR`, `ALIENSHARD_BIND`, and `ALIENSHARD_PORT` environme
 
 ## Documentation
 
+- Published docs: `https://nowhereworks.github.io/alienshard/`
 - HTTP API reference: `docs/http-api.md`
 - Configuration and containers: `docs/configuration.md`
 - Wiki behavior and autoindex: `docs/wiki.md`
