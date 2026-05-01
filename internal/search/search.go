@@ -32,13 +32,14 @@ const (
 	ScopeRaw  = "raw"
 	ScopeWiki = "wiki"
 
-	alienshardDir = ".alienshard"
-	dbName        = "search.sqlite"
-	rebuildDBName = "search.rebuild.sqlite"
-	lockName      = "search.lock"
-	wikiDirName   = "__wiki"
-	defaultNS     = "default"
-	maxFileBytes  = 5 * 1024 * 1024
+	alienshardDir    = ".alienshard"
+	dbName           = "search.sqlite"
+	rebuildDBName    = "search.rebuild.sqlite"
+	lockName         = "search.lock"
+	wikiDirName      = "__wiki"
+	namespaceDirName = "__namespaces"
+	defaultNS        = "default"
+	maxFileBytes     = 5 * 1024 * 1024
 )
 
 var (
@@ -577,7 +578,7 @@ func scanScope(ctx context.Context, db *sql.DB, rawRoot, scopeRoot, mount, names
 			if entry.Name() == alienshardDir {
 				return filepath.SkipDir
 			}
-			if mount == ScopeRaw && relPath == wikiDirName {
+			if mount == ScopeRaw && (relPath == wikiDirName || relPath == namespaceDirName) {
 				return filepath.SkipDir
 			}
 			return nil

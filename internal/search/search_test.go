@@ -14,6 +14,7 @@ func TestRebuildIndexesRawAndWikiWithExclusions(t *testing.T) {
 	mustWriteFile(t, filepath.Join(homeDir, "raw.md"), "# Raw Needle\n\nraw body")
 	mustWriteFile(t, filepath.Join(homeDir, wikiDirName, "wiki.md"), "# Wiki Needle\n\nwiki body")
 	mustWriteFile(t, filepath.Join(homeDir, wikiDirName, "hidden.md"), "# Hidden Needle\n\nwiki only")
+	mustWriteFile(t, filepath.Join(homeDir, "__namespaces", "research", "private.md"), "# Private Needle")
 	mustWriteFile(t, filepath.Join(homeDir, alienshardDir, "secret.md"), "# Secret Needle")
 	mustWriteFile(t, filepath.Join(homeDir, "image.bin"), "\x00needle")
 
@@ -42,6 +43,7 @@ func TestRebuildIndexesRawAndWikiWithExclusions(t *testing.T) {
 	assertHasPath(t, all.Results, "/n/default/wiki/wiki.md")
 	assertHasPath(t, all.Results, "/n/default/wiki/hidden.md")
 	assertNoPath(t, all.Results, "/raw/__wiki/wiki.md")
+	assertNoPath(t, all.Results, "/n/default/raw/__namespaces/research/private.md")
 	assertNoPath(t, all.Results, "/raw/.alienshard/secret.md")
 
 	rawOnly, err := Query(context.Background(), homeDir, QueryOptions{Query: "needle", Scope: ScopeRaw})
