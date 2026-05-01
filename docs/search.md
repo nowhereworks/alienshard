@@ -4,10 +4,10 @@ This document is the canonical plan and handoff record for Alien Shard search. U
 
 ## Goals
 
-- Search both first-class content layers: `/raw/*` and `/wiki/*`.
+- Search both first-class content layers in each namespace: `/n/<namespace>/raw/*` and `/n/<namespace>/wiki/*`.
 - Provide better-than-substring results with lexical ranking first, then graph and optional vector improvements.
 - Keep startup fast as raw collections and wikis grow.
-- Support offline administration through `alienshard index rebuild --home-dir /data`.
+- Support offline administration through `alienshard index rebuild --home-dir /data --namespace <namespace>`.
 - Support server-side search and reindexing after the offline index path is stable.
 - Expose only content that is reachable through the public mounts.
 - Keep the default deployment lightweight and local-first.
@@ -26,8 +26,8 @@ Search should index two public scopes.
 
 | Scope | Filesystem root | Public path prefix | Notes |
 | --- | --- | --- | --- |
-| `raw` | `rawRoot` | `/raw/` | Raw source tree. Must exclude the root-level `__wiki` implementation directory. |
-| `wiki` | `rawRoot/__wiki` | `/wiki/` | Writable wiki layer. |
+| `raw` | namespace raw root | `/n/<namespace>/raw/` | Raw source tree. Must exclude implementation directories. |
+| `wiki` | namespace raw root `__wiki` | `/n/<namespace>/wiki/` | Writable wiki layer. |
 | `all` | Both roots | Both prefixes | Default scope. |
 
 Raw should be searchable by default because it is one of Alien Shard's first-class content layers and is often the source of truth behind wiki synthesis.
@@ -57,27 +57,28 @@ Search must not expose anything that cannot be reached through the public server
 
 Required exclusions:
 
-- Exclude `rawRoot/__wiki` while scanning the `raw` scope.
-- Exclude `rawRoot/.alienshard` from all scans.
+- Exclude namespace raw root `__wiki` while scanning the `raw` scope.
+- Exclude namespace raw root `.alienshard` from all scans.
+- Exclude namespace implementation directories from default raw exposure, including `__namespaces`.
 - Exclude the active search DB, temporary rebuild DBs, locks, and other index implementation files.
 - Exclude directories and files that are configured as local-only in future ignore settings.
 - Skip binary files.
 - Skip very large files by default once a size limit is introduced.
 
-The wiki scope should scan `rawRoot/__wiki` directly and expose results as `/wiki/...`, never as `/raw/__wiki/...`.
+The wiki scope should scan the namespace `__wiki` directly and expose results as `/n/<namespace>/wiki/...`, never as a raw implementation path.
 
 ## Index Storage
 
-Use a persistent SQLite index under the served home directory:
+Use a persistent SQLite index under each namespace raw root:
 
 ```text
-<home-dir>/.alienshard/search.sqlite
+<namespace-raw-root>/.alienshard/search.sqlite
 ```
 
 Full rebuilds should write a replacement database first:
 
 ```text
-<home-dir>/.alienshard/search.rebuild.sqlite
+<namespace-raw-root>/.alienshard/search.rebuild.sqlite
 ```
 
 After a successful rebuild, atomically replace the active database. Keep search available on the old index while a server-side rebuild runs.
@@ -85,7 +86,7 @@ After a successful rebuild, atomically replace the active database. Keep search 
 Use a lock file to prevent concurrent rebuild corruption:
 
 ```text
-<home-dir>/.alienshard/search.lock
+<namespace-raw-root>/.alienshard/search.lock
 ```
 
 For the first implementation, prefer opening the SQLite database per search operation or using a short-lived connection. If the server later keeps a long-lived connection, it must detect atomic DB replacement and reopen.
@@ -96,6 +97,7 @@ Support offline rebuilding through Cobra:
 
 ```bash
 alienshard index rebuild --home-dir /data
+alienshard index rebuild --home-dir /data --namespace research
 ```
 
 Command tree:
@@ -108,7 +110,8 @@ alienshard index rebuild
 Initial `rebuild` flags:
 
 ```text
---home-dir string   Directory to index, same meaning as serve --home-dir
+--home-dir string    Directory to index, same meaning as serve --home-dir
+--namespace string   Namespace to index, env ALIEN_NAMESPACE, default default
 ```
 
 Possible later flags:
@@ -122,20 +125,21 @@ Possible later flags:
 Expected behavior:
 
 ```text
-/data/.alienshard/search.rebuild.sqlite
--> scan /data as raw
--> scan /data/__wiki as wiki
--> exclude /data/__wiki from raw scope
--> exclude /data/.alienshard
+<namespace-raw-root>/.alienshard/search.rebuild.sqlite
+-> scan <namespace-raw-root> as raw
+-> scan <namespace-raw-root>/__wiki as wiki
+-> exclude <namespace-raw-root>/__wiki from raw scope
+-> exclude <namespace-raw-root>/.alienshard
 -> populate the temporary index
 -> validate the temporary index
--> atomically replace /data/.alienshard/search.sqlite
+-> atomically replace <namespace-raw-root>/.alienshard/search.sqlite
 ```
 
 Expected text output:
 
 ```text
 Indexed 1284 files:
+  namespace: default
   raw: 912
   wiki: 372
   skipped: 18
@@ -159,9 +163,14 @@ Implemented endpoints:
 GET /search?q=...&scope=all|raw|wiki&limit=20
 GET /search/status
 POST /search/reindex
+GET /n/<namespace>/search?q=...&scope=all|raw|wiki&limit=20
+GET /n/<namespace>/search/status
+POST /n/<namespace>/search/reindex
 ```
 
-`GET /search` should default to `scope=all` and return JSON for machine clients:
+`GET /search` is the default namespace alias. Search responses use canonical `/n/<namespace>/...` result paths.
+
+`GET /n/<namespace>/search` should default to `scope=all` and return JSON for machine clients:
 
 ```json
 {
@@ -171,7 +180,7 @@ POST /search/reindex
   "results": [
     {
       "mount": "raw",
-      "path": "/raw/docs/llm-wiki.md",
+      "path": "/n/default/raw/docs/llm-wiki.md",
       "title": "LLM Wiki",
       "score": 9.8,
       "snippet": "...persistent, compounding artifact..."
@@ -202,14 +211,14 @@ There are three reindex paths.
 
 | Path | Trigger | Behavior |
 | --- | --- | --- |
-| Full CLI rebuild | `alienshard index rebuild --home-dir /data` | Build a new SQLite DB by scanning raw and wiki, then atomically replace the active index. |
-| Full HTTP rebuild | `POST /search/reindex` | Same core rebuild function, but runs in the server background and reports status. |
-| Single-document update | successful `PUT /wiki/<path>.md` or `DELETE /wiki/<path>.md` | Upsert or delete one wiki document's index rows after the mutation succeeds. |
+| Full CLI rebuild | `alienshard index rebuild --home-dir /data --namespace <namespace>` | Build a new SQLite DB by scanning namespace raw and wiki, then atomically replace the active index. |
+| Full HTTP rebuild | `POST /n/<namespace>/search/reindex` | Same core rebuild function, but runs in the server background and reports status. |
+| Single-document update | successful `PUT /n/<namespace>/wiki/<path>.md` or `DELETE /n/<namespace>/wiki/<path>.md` | Upsert or delete one wiki document's index rows after the mutation succeeds. |
 
 The CLI and HTTP rebuild implementations should share one core function, for example:
 
 ```go
-func rebuildSearchIndex(rawRoot string) (SearchRebuildResult, error)
+func rebuildSearchIndex(namespaceRawRoot, namespace string) (SearchRebuildResult, error)
 ```
 
 The actual function name can change, but there should be one source of truth for scan rules, exclusions, schema setup, and atomic replacement.
@@ -304,7 +313,7 @@ Graph support should parse markdown links and store outgoing edges. Backlinks ca
 
 Initial graph features:
 
-- parse standard markdown links that target `/wiki/...`, `/raw/...`, or relative markdown paths
+- parse standard markdown links that target `/n/<namespace>/wiki/...`, `/n/<namespace>/raw/...`, default aliases, or relative markdown paths
 - store outgoing links per document
 - expose related pages later
 - boost pages with relevant inbound links
@@ -368,16 +377,16 @@ Phase 3: lexical query support.
 
 Phase 4: server search endpoints.
 
-- Add `GET /search`.
-- Add `GET /search/status`.
-- Add `POST /search/reindex`.
+- Add `GET /search` and `GET /n/<namespace>/search`.
+- Add `GET /search/status` and `GET /n/<namespace>/search/status`.
+- Add `POST /search/reindex` and `POST /n/<namespace>/search/reindex`.
 - Ensure search does not block startup.
 - Add tests for HTTP behavior and status reporting.
 
 Phase 5: incremental wiki indexing.
 
-- Hook successful `PUT /wiki/<path>.md` into single-document index updates.
-- Hook successful `DELETE /wiki/<path>.md` into single-document index deletes.
+- Hook successful wiki `PUT` into single-document index updates.
+- Hook successful wiki `DELETE` into single-document index deletes.
 - Add tests proving wiki mutations update searchable content.
 
 Phase 6: graph metadata.
@@ -424,7 +433,7 @@ Implemented notes:
 - SQLite driver: `modernc.org/sqlite`.
 - Baseline search uses SQLite FTS5 through `internal/search`.
 - Default maximum indexed file size is 5 MiB.
-- Missing indexes do not auto-start a rebuild; use `alienshard index rebuild` or `POST /search/reindex`.
+- Missing indexes do not auto-start a rebuild; use `alienshard index rebuild` or `POST /n/<namespace>/search/reindex`.
 - Search HTTP responses are JSON-only for all user agents.
 - No vector provider is selected. Vectors remain optional future functionality and are not required for baseline search.
 
@@ -455,6 +464,7 @@ Future search commands:
 ```bash
 go run . index --help
 go run . index rebuild --home-dir /tmp/alienshard-data
+ALIEN_NAMESPACE=research go run . index rebuild --home-dir /tmp/alienshard-data
 ```
 
 After HTTP search exists:
@@ -463,6 +473,7 @@ After HTTP search exists:
 curl -sS 'http://127.0.0.1:8000/search?q=wiki&scope=all'
 curl -sS 'http://127.0.0.1:8000/search/status'
 curl -i -X POST 'http://127.0.0.1:8000/search/reindex'
+curl -sS 'http://127.0.0.1:8000/n/research/search?q=wiki&scope=all'
 ```
 
 ## Open Questions

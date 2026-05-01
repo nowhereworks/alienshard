@@ -37,6 +37,7 @@ const (
 	rebuildDBName = "search.rebuild.sqlite"
 	lockName      = "search.lock"
 	wikiDirName   = "__wiki"
+	defaultNS     = "default"
 	maxFileBytes  = 5 * 1024 * 1024
 )
 
@@ -86,9 +87,10 @@ type Status struct {
 }
 
 type Service struct {
-	rawRoot string
-	mu      sync.RWMutex
-	status  Status
+	rawRoot   string
+	namespace string
+	mu        sync.RWMutex
+	status    Status
 }
 
 type document struct {
@@ -109,11 +111,18 @@ type parsedDocument struct {
 }
 
 func NewService(rawRoot string) *Service {
+	return NewNamespaceService(rawRoot, defaultNS)
+}
+
+func NewNamespaceService(rawRoot, namespace string) *Service {
+	if strings.TrimSpace(namespace) == "" {
+		namespace = defaultNS
+	}
 	state := StateNotIndexed
 	if _, err := os.Stat(activeDBPath(rawRoot)); err == nil {
 		state = StateReady
 	}
-	return &Service{rawRoot: rawRoot, status: Status{State: state}}
+	return &Service{rawRoot: rawRoot, namespace: namespace, status: Status{State: state}}
 }
 
 func (s *Service) Status() Status {
@@ -132,7 +141,7 @@ func (s *Service) Status() Status {
 }
 
 func (s *Service) Query(ctx context.Context, opts QueryOptions) (QueryResult, error) {
-	result, err := Query(ctx, s.rawRoot, opts)
+	result, err := QueryNamespace(ctx, s.rawRoot, s.namespace, opts)
 	if err != nil {
 		return result, err
 	}
@@ -155,7 +164,7 @@ func (s *Service) StartReindex() error {
 	s.mu.Unlock()
 
 	go func() {
-		result, err := Rebuild(context.Background(), s.rawRoot)
+		result, err := RebuildNamespace(context.Background(), s.rawRoot, s.namespace)
 		finished := time.Now().UTC()
 
 		s.mu.Lock()
@@ -180,12 +189,24 @@ func (s *Service) StartReindex() error {
 }
 
 func Rebuild(ctx context.Context, rawRoot string) (RebuildResult, error) {
+	return RebuildNamespace(ctx, rawRoot, defaultNS)
+}
+
+func RebuildNamespace(ctx context.Context, rawRoot, namespace string) (RebuildResult, error) {
 	start := time.Now()
 	var result RebuildResult
+	if strings.TrimSpace(namespace) == "" {
+		namespace = defaultNS
+	}
 
 	root, err := filepath.Abs(rawRoot)
 	if err != nil {
 		return result, err
+	}
+	if namespace != defaultNS {
+		if err := os.MkdirAll(root, 0o755); err != nil {
+			return result, err
+		}
 	}
 	info, err := os.Stat(root)
 	if err != nil {
@@ -220,12 +241,12 @@ func Rebuild(ctx context.Context, rawRoot string) (RebuildResult, error) {
 		return result, err
 	}
 
-	if err := scanScope(ctx, db, root, root, ScopeRaw, &result); err != nil {
+	if err := scanScope(ctx, db, root, root, ScopeRaw, namespace, &result); err != nil {
 		return result, err
 	}
 	wikiRoot := filepath.Join(root, wikiDirName)
 	if wikiInfo, err := os.Stat(wikiRoot); err == nil && wikiInfo.IsDir() {
-		if err := scanScope(ctx, db, root, wikiRoot, ScopeWiki, &result); err != nil {
+		if err := scanScope(ctx, db, root, wikiRoot, ScopeWiki, namespace, &result); err != nil {
 			return result, err
 		}
 	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -248,6 +269,10 @@ func Rebuild(ctx context.Context, rawRoot string) (RebuildResult, error) {
 }
 
 func Query(ctx context.Context, rawRoot string, opts QueryOptions) (QueryResult, error) {
+	return QueryNamespace(ctx, rawRoot, defaultNS, opts)
+}
+
+func QueryNamespace(ctx context.Context, rawRoot, namespace string, opts QueryOptions) (QueryResult, error) {
 	scope := normalizeScope(opts.Scope)
 	limit := opts.Limit
 	if limit <= 0 {
@@ -307,6 +332,14 @@ LIMIT ?`, ftsQuery, scope, scope, limit)
 }
 
 func Backlinks(ctx context.Context, rawRoot, publicPath string) ([]SearchResult, error) {
+	return BacklinksNamespace(ctx, rawRoot, defaultNS, publicPath)
+}
+
+func BacklinksNamespace(ctx context.Context, rawRoot, namespace, publicPath string) ([]SearchResult, error) {
+	if strings.TrimSpace(namespace) == "" {
+		namespace = defaultNS
+	}
+	publicPath = canonicalPublicPath(namespace, publicPath)
 	activePath := activeDBPath(rawRoot)
 	if _, err := os.Stat(activePath); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -347,6 +380,13 @@ ORDER BY d.public_path ASC`, publicPath)
 }
 
 func UpsertWikiDocument(ctx context.Context, rawRoot, relPath string) error {
+	return UpsertWikiDocumentNamespace(ctx, rawRoot, defaultNS, relPath)
+}
+
+func UpsertWikiDocumentNamespace(ctx context.Context, rawRoot, namespace, relPath string) error {
+	if strings.TrimSpace(namespace) == "" {
+		namespace = defaultNS
+	}
 	relPath = filepath.ToSlash(filepath.Clean(relPath))
 	if relPath == "." || strings.HasPrefix(relPath, "../") || relPath == ".." {
 		return fmt.Errorf("invalid wiki relative path: %s", relPath)
@@ -370,7 +410,7 @@ func UpsertWikiDocument(ctx context.Context, rawRoot, relPath string) error {
 	info, err := os.Stat(filePath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return DeleteWikiDocument(ctx, rawRoot, relPath)
+			return DeleteWikiDocumentNamespace(ctx, rawRoot, namespace, relPath)
 		}
 		return err
 	}
@@ -378,7 +418,7 @@ func UpsertWikiDocument(ctx context.Context, rawRoot, relPath string) error {
 		return nil
 	}
 
-	doc := document{mount: ScopeWiki, root: wikiRoot, relPath: relPath, publicPath: makePublicPath("/wiki", relPath), info: info}
+	doc := document{mount: ScopeWiki, root: wikiRoot, relPath: relPath, publicPath: makePublicPath(publicMountPrefix(namespace, ScopeWiki), relPath), info: info}
 	parsed, ok, err := parseDocument(doc)
 	if err != nil {
 		return err
@@ -403,6 +443,10 @@ func UpsertWikiDocument(ctx context.Context, rawRoot, relPath string) error {
 }
 
 func DeleteWikiDocument(ctx context.Context, rawRoot, relPath string) error {
+	return DeleteWikiDocumentNamespace(ctx, rawRoot, defaultNS, relPath)
+}
+
+func DeleteWikiDocumentNamespace(ctx context.Context, rawRoot, namespace, relPath string) error {
 	relPath = filepath.ToSlash(filepath.Clean(relPath))
 	if relPath == "." || strings.HasPrefix(relPath, "../") || relPath == ".." {
 		return fmt.Errorf("invalid wiki relative path: %s", relPath)
@@ -511,7 +555,7 @@ CREATE VIRTUAL TABLE search_fts USING fts5(
 	return err
 }
 
-func scanScope(ctx context.Context, db *sql.DB, rawRoot, scopeRoot, mount string, result *RebuildResult) error {
+func scanScope(ctx context.Context, db *sql.DB, rawRoot, scopeRoot, mount, namespace string, result *RebuildResult) error {
 	return filepath.WalkDir(scopeRoot, func(currentPath string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
@@ -549,7 +593,7 @@ func scanScope(ctx context.Context, db *sql.DB, rawRoot, scopeRoot, mount string
 			return nil
 		}
 
-		doc := document{mount: mount, root: scopeRoot, relPath: relPath, publicPath: makePublicPath("/"+mount, relPath), info: info}
+		doc := document{mount: mount, root: scopeRoot, relPath: relPath, publicPath: makePublicPath(publicMountPrefix(namespace, mount), relPath), info: info}
 		parsed, ok, err := parseDocument(doc)
 		if err != nil {
 			return err
@@ -597,7 +641,7 @@ func parseDocument(doc document) (parsedDocument, bool, error) {
 	hashBytes := sha256.Sum256(body)
 	parsed = parsedDocument{document: doc, hash: hex.EncodeToString(hashBytes[:]), body: text}
 	parsed.title, parsed.headings = extractTitleAndHeadings(doc.relPath, text)
-	parsed.links = extractLinks(doc.mount, doc.relPath, text)
+	parsed.links = extractLinks(doc.mount, doc.relPath, doc.publicPath, text)
 	return parsed, true, nil
 }
 
@@ -709,10 +753,11 @@ func extractTitleAndHeadings(relPath, body string) (string, []string) {
 	return strings.TrimSuffix(base, filepath.Ext(base)), headings
 }
 
-func extractLinks(mount, relPath, body string) []string {
+func extractLinks(mount, relPath, publicPath, body string) []string {
 	matches := markdownLink.FindAllStringSubmatch(body, -1)
 	links := make([]string, 0, len(matches))
 	seen := map[string]struct{}{}
+	namespace := namespaceFromPublicPath(publicPath)
 	for _, match := range matches {
 		if len(match) < 2 {
 			continue
@@ -727,7 +772,7 @@ func extractLinks(mount, relPath, body string) []string {
 		if idx := strings.Index(link, "?"); idx >= 0 {
 			link = link[:idx]
 		}
-		normalized := normalizeLinkTarget(mount, relPath, link)
+		normalized := normalizeLinkTarget(namespace, mount, relPath, link)
 		if normalized == "" {
 			continue
 		}
@@ -741,12 +786,18 @@ func extractLinks(mount, relPath, body string) []string {
 	return links
 }
 
-func normalizeLinkTarget(mount, relPath, target string) string {
+func normalizeLinkTarget(namespace, mount, relPath, target string) string {
 	if strings.Contains(target, "://") || strings.HasPrefix(target, "mailto:") {
 		return ""
 	}
-	if strings.HasPrefix(target, "/wiki/") || strings.HasPrefix(target, "/raw/") {
+	if strings.HasPrefix(target, "/n/") {
 		return cleanPublicPath(target)
+	}
+	if strings.HasPrefix(target, "/wiki/") {
+		return canonicalPublicPath(namespace, target)
+	}
+	if strings.HasPrefix(target, "/raw/") {
+		return canonicalPublicPath(namespace, target)
 	}
 	if strings.HasPrefix(target, "/") {
 		return ""
@@ -757,10 +808,10 @@ func normalizeLinkTarget(mount, relPath, target string) string {
 		return ""
 	}
 	if mount == ScopeRaw {
-		return makePublicPath("/raw", cleanRel)
+		return makePublicPath(publicMountPrefix(namespace, ScopeRaw), cleanRel)
 	}
 	if mount == ScopeWiki {
-		return makePublicPath("/wiki", cleanRel)
+		return makePublicPath(publicMountPrefix(namespace, ScopeWiki), cleanRel)
 	}
 	return ""
 }
@@ -771,8 +822,18 @@ func cleanPublicPath(value string) string {
 		return ""
 	}
 	prefix := "/" + parts[0]
-	relParts := make([]string, 0, len(parts)-1)
-	for _, part := range parts[1:] {
+	relStart := 1
+	if parts[0] == "n" {
+		if len(parts) < 4 || (parts[2] != ScopeRaw && parts[2] != ScopeWiki) {
+			return ""
+		}
+		prefix = "/n/" + parts[1] + "/" + parts[2]
+		relStart = 3
+	} else if parts[0] != ScopeRaw && parts[0] != ScopeWiki {
+		return ""
+	}
+	relParts := make([]string, 0, len(parts)-relStart)
+	for _, part := range parts[relStart:] {
 		unescaped, err := url.PathUnescape(part)
 		if err != nil {
 			return ""
@@ -784,6 +845,34 @@ func cleanPublicPath(value string) string {
 		return ""
 	}
 	return makePublicPath(prefix, relPath)
+}
+
+func canonicalPublicPath(namespace, value string) string {
+	if strings.HasPrefix(value, "/n/") {
+		return cleanPublicPath(value)
+	}
+	if strings.HasPrefix(value, "/wiki/") {
+		return makePublicPath(publicMountPrefix(namespace, ScopeWiki), strings.TrimPrefix(value, "/wiki/"))
+	}
+	if strings.HasPrefix(value, "/raw/") {
+		return makePublicPath(publicMountPrefix(namespace, ScopeRaw), strings.TrimPrefix(value, "/raw/"))
+	}
+	return value
+}
+
+func namespaceFromPublicPath(publicPath string) string {
+	parts := strings.Split(strings.Trim(publicPath, "/"), "/")
+	if len(parts) >= 3 && parts[0] == "n" {
+		return parts[1]
+	}
+	return defaultNS
+}
+
+func publicMountPrefix(namespace, mount string) string {
+	if strings.TrimSpace(namespace) == "" {
+		namespace = defaultNS
+	}
+	return "/n/" + namespace + "/" + mount
 }
 
 func normalizeScope(scope string) string {

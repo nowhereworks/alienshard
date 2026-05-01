@@ -32,6 +32,7 @@ Show index help and rebuild a local index:
 ```bash
 go run . index --help
 go run . index rebuild --home-dir /tmp/alienshard-data
+ALIEN_NAMESPACE=research go run . index rebuild --home-dir /tmp/alienshard-data
 ```
 
 Build the binary:
@@ -77,13 +78,14 @@ The smoke test verifies:
 - The server becomes reachable.
 - Wiki pages can be written.
 - Wiki pages can be deleted.
-- `/raw` listings skip `__wiki`.
-- `/wiki` uses generated public `/wiki/...` links.
+- `/raw` listings skip implementation directories such as `__wiki`, `__namespaces`, and `.alienshard`.
+- `/wiki` is the default namespace alias for `/n/default/wiki`.
+- `/n/<namespace>/wiki` uses generated canonical `/n/<namespace>/wiki/...` links.
 - Generated wiki links resolve.
 
 ## Tests
 
-Tests cover command configuration, mount behavior, Markdown rendering, wiki mutation validation, autoindex behavior, search indexing/querying/reindexing, Docker-sensitive file ownership assumptions, and helper functions.
+Tests cover command configuration, namespace routing, mount behavior, Markdown rendering, wiki mutation validation, autoindex behavior, search indexing/querying/reindexing, Docker-sensitive file ownership assumptions, and helper functions.
 
 For code changes:
 
@@ -172,6 +174,7 @@ Do not stage ignored or local artifacts such as:
 - `.env*`
 - key files
 - `__wiki/`
+- `__namespaces/`
 - `coverage.out`
 - local binaries
 - logs

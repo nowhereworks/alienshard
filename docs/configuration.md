@@ -45,10 +45,44 @@ For a home directory of `/data`:
 
 | Path | Meaning |
 | --- | --- |
-| `/data` | Raw source tree served through `/raw/*`. |
-| `/data/__wiki` | Wiki storage served through `/wiki/*`. |
+| `/data` | Default namespace raw source tree served through `/n/default/raw/*` and `/raw/*`. |
+| `/data/__wiki` | Default namespace wiki storage served through `/n/default/wiki/*` and `/wiki/*`. |
+| `/data/.alienshard/search.sqlite` | Default namespace search index. |
+| `/data/__namespaces/<namespace>` | Non-default namespace raw source tree served through `/n/<namespace>/raw/*`. |
+| `/data/__namespaces/<namespace>/__wiki` | Non-default namespace wiki storage served through `/n/<namespace>/wiki/*`. |
+| `/data/__namespaces/<namespace>/.alienshard/search.sqlite` | Non-default namespace search index. |
 
-The wiki implementation directory is blocked through `/raw/__wiki` so clients use `/wiki/*` consistently.
+Implementation directories are blocked through raw mounts so clients use public raw, wiki, and search URLs consistently.
+
+## Client Namespace
+
+Clients can source `ALIEN_NAMESPACE` to choose an isolated working area. The server still receives an ordinary URL; clients use the variable to build `/n/<namespace>/...` paths.
+
+```bash
+ALIEN_NAMESPACE=research
+curl -sS "http://127.0.0.1:8000/n/$ALIEN_NAMESPACE/wiki/index.md"
+```
+
+Namespace names are flat lowercase slugs. They can contain lowercase letters, digits, dots, dashes, and underscores, must start with a letter or digit, and must not contain slashes.
+
+## Index Command
+
+`alienshard index rebuild` supports namespace selection:
+
+| Flag | Environment | Default | Description |
+| --- | --- | --- | --- |
+| `--home-dir` | none | Current working directory | Base home directory. |
+| `--namespace` | `ALIEN_NAMESPACE` | `default` | Namespace to index. |
+
+Examples:
+
+```bash
+alienshard index rebuild --home-dir /data --namespace research
+```
+
+```bash
+ALIEN_NAMESPACE=research alienshard index rebuild --home-dir /data
+```
 
 ## Docker
 

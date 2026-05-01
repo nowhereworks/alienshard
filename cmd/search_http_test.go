@@ -53,8 +53,8 @@ func TestSearchHTTPQueryAndStatus(t *testing.T) {
 	if err := json.Unmarshal(queryRR.Body.Bytes(), &result); err != nil {
 		t.Fatalf("json.Unmarshal query returned error: %v", err)
 	}
-	if len(result.Results) != 1 || result.Results[0].Path != "/raw/doc.md" {
-		t.Fatalf("results = %#v, want /raw/doc.md", result.Results)
+	if len(result.Results) != 1 || result.Results[0].Path != "/n/default/raw/doc.md" {
+		t.Fatalf("results = %#v, want /n/default/raw/doc.md", result.Results)
 	}
 }
 
@@ -105,8 +105,8 @@ func TestSearchHTTPReindex(t *testing.T) {
 	if err := json.Unmarshal(queryRR.Body.Bytes(), &result); err != nil {
 		t.Fatalf("json.Unmarshal returned error: %v", err)
 	}
-	if len(result.Results) != 1 || result.Results[0].Path != "/raw/doc.md" {
-		t.Fatalf("results = %#v, want /raw/doc.md", result.Results)
+	if len(result.Results) != 1 || result.Results[0].Path != "/n/default/raw/doc.md" {
+		t.Fatalf("results = %#v, want /n/default/raw/doc.md", result.Results)
 	}
 }
 
@@ -133,8 +133,8 @@ func TestWikiMutationUpdatesSearchIndex(t *testing.T) {
 	if err := json.Unmarshal(queryRR.Body.Bytes(), &result); err != nil {
 		t.Fatalf("json.Unmarshal query returned error: %v", err)
 	}
-	if len(result.Results) != 1 || result.Results[0].Path != "/wiki/live.md" {
-		t.Fatalf("results after PUT = %#v, want /wiki/live.md", result.Results)
+	if len(result.Results) != 1 || result.Results[0].Path != "/n/default/wiki/live.md" {
+		t.Fatalf("results after PUT = %#v, want /n/default/wiki/live.md", result.Results)
 	}
 
 	deleteRR := httptest.NewRecorder()
@@ -150,6 +150,42 @@ func TestWikiMutationUpdatesSearchIndex(t *testing.T) {
 	}
 	if len(result.Results) != 0 {
 		t.Fatalf("results after DELETE = %#v, want none", result.Results)
+	}
+}
+
+func TestNamespacedSearchHTTPIsIsolated(t *testing.T) {
+	t.Parallel()
+
+	rawRoot := t.TempDir()
+	namespaceRoot := namespaceRawRoot(rawRoot, "research")
+	if err := os.MkdirAll(namespaceRoot, 0o755); err != nil {
+		t.Fatalf("os.MkdirAll returned error: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(rawRoot, "default.md"), []byte("# Default\n\nsharedneedle"), 0o644); err != nil {
+		t.Fatalf("os.WriteFile default returned error: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(namespaceRoot, "research.md"), []byte("# Research\n\nsharedneedle"), 0o644); err != nil {
+		t.Fatalf("os.WriteFile research returned error: %v", err)
+	}
+	if _, err := search.Rebuild(context.Background(), rawRoot); err != nil {
+		t.Fatalf("default Rebuild returned error: %v", err)
+	}
+	if _, err := search.RebuildNamespace(context.Background(), namespaceRoot, "research"); err != nil {
+		t.Fatalf("research RebuildNamespace returned error: %v", err)
+	}
+	handler := newMountedHandler(rawRoot, filepath.Join(rawRoot, wikiDirName))
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/n/research/search?q=sharedneedle&scope=raw", nil))
+	if rr.Code != http.StatusOK {
+		t.Fatalf("code = %d, want %d; body=%q", rr.Code, http.StatusOK, rr.Body.String())
+	}
+	var result search.QueryResult
+	if err := json.Unmarshal(rr.Body.Bytes(), &result); err != nil {
+		t.Fatalf("json.Unmarshal returned error: %v", err)
+	}
+	if len(result.Results) != 1 || result.Results[0].Path != "/n/research/raw/research.md" {
+		t.Fatalf("results = %#v, want only /n/research/raw/research.md", result.Results)
 	}
 }
 

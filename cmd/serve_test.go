@@ -206,6 +206,63 @@ func TestRawWikiSubtreeBlocked(t *testing.T) {
 	}
 }
 
+func TestDefaultNamespaceRawAliasAndCanonicalPathMatch(t *testing.T) {
+	t.Parallel()
+
+	rawRoot := t.TempDir()
+	wikiRoot := filepath.Join(rawRoot, wikiDirName)
+	if err := os.WriteFile(filepath.Join(rawRoot, "doc.txt"), []byte("default"), 0o644); err != nil {
+		t.Fatalf("os.WriteFile returned error: %v", err)
+	}
+	handler := newMountedHandler(rawRoot, wikiRoot)
+
+	for _, path := range []string{"/raw/doc.txt", "/n/default/raw/doc.txt"} {
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, path, nil))
+		if rr.Code != http.StatusOK || rr.Body.String() != "default" {
+			t.Fatalf("GET %s = status %d body %q, want default", path, rr.Code, rr.Body.String())
+		}
+	}
+}
+
+func TestNamespacedWikiPutUsesIsolatedStorage(t *testing.T) {
+	t.Parallel()
+
+	rawRoot := t.TempDir()
+	wikiRoot := filepath.Join(rawRoot, wikiDirName)
+	handler := newMountedHandler(rawRoot, wikiRoot)
+
+	req := httptest.NewRequest(http.MethodPut, "/n/research/wiki/page.md", strings.NewReader("# Research"))
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want %d; body=%q", rr.Code, http.StatusCreated, rr.Body.String())
+	}
+
+	data, err := os.ReadFile(filepath.Join(rawRoot, namespaceDirName, "research", wikiDirName, "page.md"))
+	if err != nil {
+		t.Fatalf("os.ReadFile returned error: %v", err)
+	}
+	if string(data) != "# Research" {
+		t.Fatalf("data = %q, want %q", string(data), "# Research")
+	}
+	if _, err := os.Stat(filepath.Join(wikiRoot, "page.md")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("default wiki page exists or unexpected error: %v", err)
+	}
+}
+
+func TestInvalidNamespaceRejected(t *testing.T) {
+	t.Parallel()
+
+	rawRoot := t.TempDir()
+	handler := newMountedHandler(rawRoot, filepath.Join(rawRoot, wikiDirName))
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/n/Bad/wiki/index.md", nil))
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", rr.Code, http.StatusBadRequest)
+	}
+}
+
 func TestRawDirectoryListingSkipsWikiRoot(t *testing.T) {
 	t.Parallel()
 
@@ -383,8 +440,8 @@ func TestWikiIndexGeneratedWhenMissingOnGet(t *testing.T) {
 	if !strings.HasPrefix(string(indexData), autoIndexMarker) {
 		t.Fatalf("expected generated index marker, got %q", string(indexData))
 	}
-	if !strings.Contains(string(indexData), "- [page](/wiki/page.md)") {
-		t.Fatalf("expected generated index to link through /wiki, got %q", string(indexData))
+	if !strings.Contains(string(indexData), "- [page](/n/default/wiki/page.md)") {
+		t.Fatalf("expected generated index to link through /n/default/wiki, got %q", string(indexData))
 	}
 	if rr.Body.String() != string(indexData) {
 		t.Fatalf("response body = %q, want generated index %q", rr.Body.String(), string(indexData))
@@ -423,13 +480,13 @@ func TestWikiRootServesGeneratedIndex(t *testing.T) {
 			if got := rr.Header().Get("Content-Type"); got != "text/html; charset=utf-8" {
 				t.Fatalf("content-type = %q, want %q", got, "text/html; charset=utf-8")
 			}
-			if !strings.Contains(rr.Body.String(), `href="/wiki/hello-world.md"`) {
-				t.Fatalf("expected generated /wiki link, got %q", rr.Body.String())
+			if !strings.Contains(rr.Body.String(), `href="/n/default/wiki/hello-world.md"`) {
+				t.Fatalf("expected generated /n/default/wiki link, got %q", rr.Body.String())
 			}
 			if strings.Contains(rr.Body.String(), `href="hello-world.md"`) {
 				t.Fatalf("expected no file server relative link, got %q", rr.Body.String())
 			}
-			if strings.Contains(rr.Body.String(), `href="/wiki/index.md"`) || strings.Contains(rr.Body.String(), `href="/wiki/nested/index.md"`) {
+			if strings.Contains(rr.Body.String(), `href="/n/default/wiki/index.md"`) || strings.Contains(rr.Body.String(), `href="/n/default/wiki/nested/index.md"`) {
 				t.Fatalf("expected no autoindex self-links, got %q", rr.Body.String())
 			}
 
@@ -472,8 +529,8 @@ func TestWikiIndexRefreshedWhenManagedOnGet(t *testing.T) {
 	if strings.Contains(rr.Body.String(), "- [page](page.md)") {
 		t.Fatalf("expected stale relative link to be removed, got %q", rr.Body.String())
 	}
-	if !strings.Contains(rr.Body.String(), "- [page](/wiki/page.md)") {
-		t.Fatalf("expected refreshed /wiki link, got %q", rr.Body.String())
+	if !strings.Contains(rr.Body.String(), "- [page](/n/default/wiki/page.md)") {
+		t.Fatalf("expected refreshed /n/default/wiki link, got %q", rr.Body.String())
 	}
 }
 
@@ -507,8 +564,8 @@ func TestWikiIndexRegeneratedWhenManaged(t *testing.T) {
 		t.Fatalf("expected generated index marker, got %q", index)
 	}
 
-	alphaPos := strings.Index(index, "- [alpha](/wiki/alpha.md)")
-	betaPos := strings.Index(index, "- [beta](/wiki/beta.md)")
+	alphaPos := strings.Index(index, "- [alpha](/n/default/wiki/alpha.md)")
+	betaPos := strings.Index(index, "- [beta](/n/default/wiki/beta.md)")
 	if alphaPos < 0 || betaPos < 0 {
 		t.Fatalf("expected alpha and beta entries in index, got %q", index)
 	}

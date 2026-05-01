@@ -2,7 +2,7 @@
 
 Use this skill when the user asks to use Alienshard, shared wiki notes, agent handoff notes, or workspace files over HTTP.
 
-Alienshard exposes a local HTTP interface for reading raw workspace files and reading, writing, or deleting Markdown wiki pages. Do not guess a server URL. Resolve it with the workflow below before using Alienshard.
+Alienshard exposes a local HTTP interface for reading raw workspace files and reading, writing, or deleting Markdown wiki pages. Do not guess a server URL. Resolve it with the workflow below before using Alienshard. Use `ALIEN_NAMESPACE` when present; otherwise use `default`.
 
 ## Resolve The URL
 
@@ -29,6 +29,12 @@ Normalize the selected URL:
 - Reject empty or malformed values.
 - Do not invent hostnames beyond the fallback.
 
+Resolve the namespace:
+
+- Use `ALIEN_NAMESPACE` when present.
+- Otherwise use `default`.
+- Namespace names are flat slugs; do not include slashes.
+
 You can use the bundled helper:
 
 ```bash
@@ -41,25 +47,29 @@ Probe Alienshard before relying on it:
 
 ```bash
 ALIEN_URL="$(./skill/scripts/resolve-alienshard-url.sh)"
-curl -fsS "$ALIEN_URL/wiki/index.md"
+ALIEN_NAMESPACE="${ALIEN_NAMESPACE:-default}"
+curl -fsS "$ALIEN_URL/n/$ALIEN_NAMESPACE/wiki/index.md"
 ```
 
 If that fails, optionally probe the raw mount:
 
 ```bash
-curl -fsS "$ALIEN_URL/raw/"
+ALIEN_URL="$(./skill/scripts/resolve-alienshard-url.sh)"
+ALIEN_NAMESPACE="${ALIEN_NAMESPACE:-default}"
+curl -fsS "$ALIEN_URL/n/$ALIEN_NAMESPACE/raw/"
 ```
 
 If both fail, report that Alienshard was not reachable. Include the resolved URL and where it came from if known.
 
 ## Endpoints
 
-- `GET /raw/<path>` reads files from the served raw root.
-- `GET /wiki/<path>.md` reads wiki Markdown.
-- `PUT /wiki/<path>.md` creates or updates wiki Markdown.
-- `DELETE /wiki/<path>.md` deletes wiki Markdown.
-- `/raw/__wiki` and `/raw/__wiki/*` are intentionally blocked.
-- Wiki files are stored under the server's `__wiki` directory, but clients should access them via `/wiki/*`.
+- `GET /n/<namespace>/raw/<path>` reads files from the namespace raw root.
+- `GET /n/<namespace>/wiki/<path>.md` reads wiki Markdown.
+- `PUT /n/<namespace>/wiki/<path>.md` creates or updates wiki Markdown.
+- `DELETE /n/<namespace>/wiki/<path>.md` deletes wiki Markdown.
+- `/raw/*`, `/wiki/*`, and `/search*` are default namespace aliases.
+- Raw implementation directories such as `__wiki`, `__namespaces`, and `.alienshard` are intentionally blocked.
+- Wiki files are stored under the server's `__wiki` directories, but clients should access them via wiki mounts.
 
 ## Read Examples
 
@@ -67,14 +77,16 @@ Read a workspace file:
 
 ```bash
 ALIEN_URL="$(./skill/scripts/resolve-alienshard-url.sh)"
-curl -fsS "$ALIEN_URL/raw/README.md"
+ALIEN_NAMESPACE="${ALIEN_NAMESPACE:-default}"
+curl -fsS "$ALIEN_URL/n/$ALIEN_NAMESPACE/raw/README.md"
 ```
 
 Read a wiki page:
 
 ```bash
 ALIEN_URL="$(./skill/scripts/resolve-alienshard-url.sh)"
-curl -fsS "$ALIEN_URL/wiki/index.md"
+ALIEN_NAMESPACE="${ALIEN_NAMESPACE:-default}"
+curl -fsS "$ALIEN_URL/n/$ALIEN_NAMESPACE/wiki/index.md"
 ```
 
 ## Write Examples
@@ -83,10 +95,11 @@ Create or update a wiki Markdown page:
 
 ```bash
 ALIEN_URL="$(./skill/scripts/resolve-alienshard-url.sh)"
+ALIEN_NAMESPACE="${ALIEN_NAMESPACE:-default}"
 curl -fsS -X PUT \
   -H 'Content-Type: text/markdown; charset=utf-8' \
   --data-binary @note.md \
-  "$ALIEN_URL/wiki/path/to/note.md"
+  "$ALIEN_URL/n/$ALIEN_NAMESPACE/wiki/path/to/note.md"
 ```
 
 Rules for writes:
@@ -94,7 +107,7 @@ Rules for writes:
 - Only write `.md` paths.
 - Do not use traversal-like paths such as `../secret.md`.
 - Treat HTTP `201` as created and HTTP `200` as updated.
-- Prefer writing durable notes, investigation findings, and agent handoff context to `/wiki/*`.
+- Prefer writing durable notes, investigation findings, and agent handoff context to `/n/<namespace>/wiki/*`.
 - Do not write secrets, credentials, tokens, or private environment values.
 
 ## Delete Examples
@@ -103,8 +116,9 @@ Delete a wiki Markdown page:
 
 ```bash
 ALIEN_URL="$(./skill/scripts/resolve-alienshard-url.sh)"
+ALIEN_NAMESPACE="${ALIEN_NAMESPACE:-default}"
 curl -fsS -X DELETE \
-  "$ALIEN_URL/wiki/path/to/note.md"
+  "$ALIEN_URL/n/$ALIEN_NAMESPACE/wiki/path/to/note.md"
 ```
 
 Rules for deletes:

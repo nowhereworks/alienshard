@@ -4,6 +4,8 @@ Brief record of user-visible changes and notable project decisions.
 
 ## Unreleased
 
+- Added flat namespaces with canonical `/n/<namespace>/raw`, `/n/<namespace>/wiki`, and `/n/<namespace>/search` routes, plus default aliases for existing `/raw`, `/wiki`, and `/search` URLs.
+- Added `ALIEN_NAMESPACE` and `--namespace` support for namespace-specific search rebuilds, with isolated non-default storage under `__namespaces/<namespace>`.
 - Standardized project-owned environment variables on the `ALIEN_` prefix and removed unprefixed/`ALIENSHARD_` serve configuration names.
 - Implemented local SQLite FTS5 search across `/raw/*` and `/wiki/*`, including `alienshard index rebuild`, `/search`, `/search/status`, `/search/reindex`, wiki mutation index updates, and markdown link metadata.
 - Added automatic MkDocs Material publishing for `docs/` through GitHub Pages on documentation-related pushes to `main`.

@@ -38,9 +38,9 @@ func TestRebuildIndexesRawAndWikiWithExclusions(t *testing.T) {
 	if all.IndexState != StateReady {
 		t.Fatalf("IndexState = %q, want %q", all.IndexState, StateReady)
 	}
-	assertHasPath(t, all.Results, "/raw/raw.md")
-	assertHasPath(t, all.Results, "/wiki/wiki.md")
-	assertHasPath(t, all.Results, "/wiki/hidden.md")
+	assertHasPath(t, all.Results, "/n/default/raw/raw.md")
+	assertHasPath(t, all.Results, "/n/default/wiki/wiki.md")
+	assertHasPath(t, all.Results, "/n/default/wiki/hidden.md")
 	assertNoPath(t, all.Results, "/raw/__wiki/wiki.md")
 	assertNoPath(t, all.Results, "/raw/.alienshard/secret.md")
 
@@ -48,16 +48,16 @@ func TestRebuildIndexesRawAndWikiWithExclusions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("raw Query returned error: %v", err)
 	}
-	if len(rawOnly.Results) != 1 || rawOnly.Results[0].Path != "/raw/raw.md" {
-		t.Fatalf("raw results = %#v, want only /raw/raw.md", rawOnly.Results)
+	if len(rawOnly.Results) != 1 || rawOnly.Results[0].Path != "/n/default/raw/raw.md" {
+		t.Fatalf("raw results = %#v, want only /n/default/raw/raw.md", rawOnly.Results)
 	}
 
 	wikiOnly, err := Query(context.Background(), homeDir, QueryOptions{Query: "needle", Scope: ScopeWiki})
 	if err != nil {
 		t.Fatalf("wiki Query returned error: %v", err)
 	}
-	assertHasPath(t, wikiOnly.Results, "/wiki/wiki.md")
-	assertNoPath(t, wikiOnly.Results, "/raw/raw.md")
+	assertHasPath(t, wikiOnly.Results, "/n/default/wiki/wiki.md")
+	assertNoPath(t, wikiOnly.Results, "/n/default/raw/raw.md")
 }
 
 func TestQueryReportsNotIndexed(t *testing.T) {
@@ -93,8 +93,8 @@ func TestIncrementalWikiUpsertAndDelete(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Query returned error: %v", err)
 	}
-	if len(result.Results) != 1 || result.Results[0].Path != "/wiki/new.md" {
-		t.Fatalf("results = %#v, want /wiki/new.md", result.Results)
+	if len(result.Results) != 1 || result.Results[0].Path != "/n/default/wiki/new.md" {
+		t.Fatalf("results = %#v, want /n/default/wiki/new.md", result.Results)
 	}
 
 	if err := os.Remove(filepath.Join(homeDir, wikiDirName, "new.md")); err != nil {
@@ -132,8 +132,30 @@ func TestBacklinksNormalizeRelativeAndPublicLinks(t *testing.T) {
 	if len(backlinks) != 2 {
 		t.Fatalf("backlinks = %#v, want two unique source documents", backlinks)
 	}
-	assertHasPath(t, backlinks, "/raw/raw.md")
-	assertHasPath(t, backlinks, "/wiki/folder/source.md")
+	assertHasPath(t, backlinks, "/n/default/raw/raw.md")
+	assertHasPath(t, backlinks, "/n/default/wiki/folder/source.md")
+}
+
+func TestNamespaceRebuildIsIsolated(t *testing.T) {
+	t.Parallel()
+
+	homeDir := t.TempDir()
+	namespaceRoot := filepath.Join(homeDir, "__namespaces", "research")
+	mustWriteFile(t, filepath.Join(homeDir, "default.md"), "# Default Needle")
+	mustWriteFile(t, filepath.Join(namespaceRoot, "research.md"), "# Research Needle")
+	mustWriteFile(t, filepath.Join(namespaceRoot, wikiDirName, "note.md"), "# Research Wiki Needle")
+
+	if _, err := RebuildNamespace(context.Background(), namespaceRoot, "research"); err != nil {
+		t.Fatalf("RebuildNamespace returned error: %v", err)
+	}
+
+	result, err := QueryNamespace(context.Background(), namespaceRoot, "research", QueryOptions{Query: "needle"})
+	if err != nil {
+		t.Fatalf("QueryNamespace returned error: %v", err)
+	}
+	assertHasPath(t, result.Results, "/n/research/raw/research.md")
+	assertHasPath(t, result.Results, "/n/research/wiki/note.md")
+	assertNoPath(t, result.Results, "/n/default/raw/default.md")
 }
 
 func mustWriteFile(t *testing.T, path, contents string) {

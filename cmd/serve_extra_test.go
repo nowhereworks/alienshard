@@ -471,7 +471,7 @@ func TestWikiDeleteRefreshesManagedIndex(t *testing.T) {
 	if !strings.HasPrefix(index, autoIndexMarker) {
 		t.Fatalf("expected generated index marker, got %q", index)
 	}
-	if !strings.Contains(index, "- [alpha](/wiki/alpha.md)") {
+	if !strings.Contains(index, "- [alpha](/n/default/wiki/alpha.md)") {
 		t.Fatalf("expected alpha entry after delete, got %q", index)
 	}
 	if strings.Contains(index, "beta") {
@@ -688,7 +688,7 @@ func TestIndexHelpers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("os.ReadFile returned error: %v", err)
 	}
-	if !strings.Contains(string(managedIndex), "- [a](/wiki/a.md)") || !strings.Contains(string(managedIndex), "- [.md](/wiki/.md)") || !strings.Contains(string(managedIndex), "- [b](/wiki/nested/b.md)") {
+	if !strings.Contains(string(managedIndex), "- [a](/n/default/wiki/a.md)") || !strings.Contains(string(managedIndex), "- [.md](/n/default/wiki/.md)") || !strings.Contains(string(managedIndex), "- [b](/n/default/wiki/nested/b.md)") {
 		t.Fatalf("generated index missing expected links: %q", string(managedIndex))
 	}
 }

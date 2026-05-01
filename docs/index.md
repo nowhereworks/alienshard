@@ -6,7 +6,7 @@ Alien Shard is a lightweight Go server for mixed human and machine Markdown work
 
 - Humans using Chrome or Firefox get rendered HTML for `.md` files.
 - Machines, agents, curl, and scripts get raw Markdown for `.md` files.
-- One process serves raw source files and a writable wiki layer.
+- One process serves raw source files and writable wiki layers across namespaces.
 
 ## Documentation
 

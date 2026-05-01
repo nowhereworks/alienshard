@@ -17,12 +17,37 @@ func TestRunIndexRebuildWritesSummary(t *testing.T) {
 	}
 
 	var out bytes.Buffer
-	if err := runIndexRebuild(homeDir, &out); err != nil {
+	if err := runIndexRebuild(homeDir, defaultNamespace, &out); err != nil {
 		t.Fatalf("runIndexRebuild returned error: %v", err)
 	}
 
 	got := out.String()
-	for _, want := range []string{"Indexed 1 files:", "raw: 1", "wiki: 0", "skipped: 0"} {
+	for _, want := range []string{"Indexed 1 files:", "namespace: default", "raw: 1", "wiki: 0", "skipped: 0"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("output = %q, want to contain %q", got, want)
+		}
+	}
+}
+
+func TestRunIndexRebuildUsesNamespace(t *testing.T) {
+	t.Parallel()
+
+	homeDir := t.TempDir()
+	namespaceRoot := filepath.Join(homeDir, namespaceDirName, "research")
+	if err := os.MkdirAll(namespaceRoot, 0o755); err != nil {
+		t.Fatalf("os.MkdirAll returned error: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(namespaceRoot, "doc.md"), []byte("# Doc\n\nneedle"), 0o644); err != nil {
+		t.Fatalf("os.WriteFile returned error: %v", err)
+	}
+
+	var out bytes.Buffer
+	if err := runIndexRebuild(homeDir, "research", &out); err != nil {
+		t.Fatalf("runIndexRebuild returned error: %v", err)
+	}
+
+	got := out.String()
+	for _, want := range []string{"Indexed 1 files:", "namespace: research", "raw: 1"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("output = %q, want to contain %q", got, want)
 		}

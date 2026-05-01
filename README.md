@@ -12,7 +12,7 @@ Alien Shard is a lightweight Go server for mixed human + machine Markdown workfl
 
 - Humans using Chrome or Firefox get rendered HTML for `.md` files.
 - Machines, agents, curl, and scripts get raw Markdown for `.md` files.
-- One process serves raw source files and a writable wiki layer.
+- One process serves raw source files and writable wiki layers across namespaces.
 
 ## Why
 
@@ -44,6 +44,7 @@ Open in a browser:
 
 - `http://127.0.0.1:8000/raw/`
 - `http://127.0.0.1:8000/wiki`
+- `http://127.0.0.1:8000/n/default/wiki`
 
 Read Markdown as a machine client:
 
@@ -60,6 +61,16 @@ curl -i -X PUT \
   http://127.0.0.1:8000/wiki/project/notes.md
 ```
 
+Use an isolated namespace for another agent or working area:
+
+```bash
+ALIEN_NAMESPACE=research
+curl -i -X PUT \
+  -H "Content-Type: text/markdown" \
+  --data-binary "# Research Notes" \
+  "http://127.0.0.1:8000/n/$ALIEN_NAMESPACE/wiki/notes.md"
+```
+
 Delete a wiki page:
 
 ```bash
@@ -71,6 +82,12 @@ Build the local search index:
 
 ```bash
 go run . index rebuild --home-dir /tmp
+```
+
+Build a namespace-specific search index:
+
+```bash
+ALIEN_NAMESPACE=research go run . index rebuild --home-dir /tmp
 ```
 
 Search indexed raw and wiki content:
@@ -90,7 +107,7 @@ docker run --rm \
   nowhereworks/alienshard:edge
 ```
 
-The container serves `/data`, binds to `0.0.0.0:8000`, and writes wiki pages under `/data/__wiki`.
+The container serves `/data`, binds to `0.0.0.0:8000`, writes default wiki pages under `/data/__wiki`, and writes non-default namespaces under `/data/__namespaces/<namespace>`.
 
 Build locally:
 
@@ -113,7 +130,8 @@ Serve options:
 Index rebuild options:
 
 ```text
---home-dir string   Directory to index (default current directory)
+--home-dir string    Directory to index (default current directory)
+--namespace string   Namespace to index (env ALIEN_NAMESPACE, default default)
 ```
 
 ## Documentation
