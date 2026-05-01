@@ -15,4 +15,4 @@ Alien Shard is a lightweight Go server for mixed human and machine Markdown work
 - [Wiki](wiki.md): wiki storage, mutations, autoindex, and manual index behavior.
 - [Development](development.md): build, test, smoke, release, and documentation workflow.
 - [LLM Wiki](llm-wiki.md): product concept and LLM-maintained wiki pattern.
-- [Search Roadmap](search.md): planned search design and implementation handoff.
+- [Search](search.md): search design, implementation notes, and future roadmap.

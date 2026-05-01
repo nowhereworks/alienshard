@@ -67,6 +67,18 @@ curl -i -X DELETE \
   http://127.0.0.1:8000/wiki/project/notes.md
 ```
 
+Build the local search index:
+
+```bash
+go run . index rebuild --home-dir /tmp
+```
+
+Search indexed raw and wiki content:
+
+```bash
+curl -sS 'http://127.0.0.1:8000/search?q=project&scope=all'
+```
+
 ## Container
 
 Run the latest published `main` branch image from Docker Hub with the current directory mounted as the served data root:
@@ -90,6 +102,8 @@ Use `nowhereworks/alienshard:latest` after a stable `v*` release has published.
 
 ## Command Options
 
+Serve options:
+
 ```text
 --home-dir string   Directory to serve (env HOME_DIR, default current directory)
 --bind string       IP address to bind (env BIND, default "127.0.0.1")
@@ -97,6 +111,12 @@ Use `nowhereworks/alienshard:latest` after a stable `v*` release has published.
 ```
 
 Legacy `ALIENSHARD_HOME_DIR`, `ALIENSHARD_BIND`, and `ALIENSHARD_PORT` environment variables are also accepted.
+
+Index rebuild options:
+
+```text
+--home-dir string   Directory to index (default current directory)
+```
 
 ## Documentation
 
@@ -106,14 +126,14 @@ Legacy `ALIENSHARD_HOME_DIR`, `ALIENSHARD_BIND`, and `ALIENSHARD_PORT` environme
 - Wiki behavior and autoindex: `docs/wiki.md`
 - Development and release workflow: `docs/development.md`
 - LLM Wiki pattern: `docs/llm-wiki.md`
-- Search roadmap: `docs/search.md`
+- Search design and status: `docs/search.md`
 
 ## Development
 
 Run tests:
 
 ```bash
-rtk go test ./...
+go test ./...
 ```
 
 Run the wiki smoke test:
@@ -126,6 +146,7 @@ Show CLI help:
 
 ```bash
 go run . serve --help
+go run . index --help
 ```
 
 ## Credits

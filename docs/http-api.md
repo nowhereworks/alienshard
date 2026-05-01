@@ -132,7 +132,62 @@ Examples rejected by `PUT` and `DELETE`:
 | Forbidden wiki mutation path | `403` | Traversal-like or otherwise unsafe path. |
 | Unsupported `/wiki` method | `405` | Method not allowed. |
 | Filesystem or render failure | `500` | Server-side error. |
+| `GET /search` with invalid query parameters | `400` | Missing `q`, invalid `scope`, or invalid `limit`. |
+| `POST /search/reindex` accepted | `202` | Background reindex started. |
+| `POST /search/reindex` while indexing | `409` | Reindex already in progress. |
 
 ## Search Endpoints
 
-Search endpoints are planned but not implemented. The current roadmap is `docs/search.md`.
+Search uses a persistent SQLite FTS5 index under `rawRoot/.alienshard/search.sqlite`. Build it offline with:
+
+```bash
+alienshard index rebuild --home-dir /data
+```
+
+Search both public content layers:
+
+```text
+GET /search?q=<query>&scope=all|raw|wiki&limit=20
+```
+
+Behavior:
+
+- `q` is required.
+- `scope` defaults to `all`.
+- `limit` defaults to `20` and must be `1-100`.
+- Responses are JSON for all user agents.
+- If no index exists, the response is `200 OK` with `index_state: "not_indexed"` and an empty result list.
+- If a background rebuild is running and an old index exists, searches continue using the old index with `index_state: "indexing"`.
+
+Example response:
+
+```json
+{
+  "query": "persistent knowledge",
+  "scope": "all",
+  "index_state": "ready",
+  "results": [
+    {
+      "mount": "raw",
+      "path": "/raw/docs/llm-wiki.md",
+      "title": "LLM Wiki",
+      "score": 9.8,
+      "snippet": "...persistent knowledge..."
+    }
+  ]
+}
+```
+
+Check indexing state:
+
+```text
+GET /search/status
+```
+
+Start a server-side background rebuild:
+
+```text
+POST /search/reindex
+```
+
+`POST /search/reindex` returns `202 Accepted` when the rebuild starts. The active index is atomically replaced only after a successful rebuild.

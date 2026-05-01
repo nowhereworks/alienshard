@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -16,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	"alienshard/internal/search"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/yuin/goldmark"
@@ -77,12 +79,21 @@ func runServe(config *viper.Viper) error {
 }
 
 func newMountedHandler(rawRoot, wikiRoot string) http.Handler {
+	return newMountedHandlerWithSearch(rawRoot, wikiRoot, search.NewService(rawRoot))
+}
+
+func newMountedHandlerWithSearch(rawRoot, wikiRoot string, searchService *search.Service) http.Handler {
 	rawFileSystem := rootFilteredFileSystem{fileSystem: http.Dir(rawRoot), hiddenName: wikiDirName}
 	rawFileServer := http.FileServer(rawFileSystem)
 	wikiFileSystem := http.Dir(wikiRoot)
 	wikiFileServer := http.FileServer(wikiFileSystem)
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if isSearchPath(r.URL.Path) {
+			handleSearch(w, r, searchService)
+			return
+		}
+
 		if isRawPath(r.URL.Path) {
 			if isBlockedRawPath(r.URL.Path) {
 				http.NotFound(w, r)
@@ -98,11 +109,11 @@ func newMountedHandler(rawRoot, wikiRoot string) http.Handler {
 			strippedPath := stripMountPath(r.URL.Path, "/wiki")
 
 			if r.Method == http.MethodPut {
-				handleWikiPut(w, r, wikiRoot)
+				handleWikiPut(w, r, rawRoot, wikiRoot)
 				return
 			}
 			if r.Method == http.MethodDelete {
-				handleWikiDelete(w, r, wikiRoot)
+				handleWikiDelete(w, r, rawRoot, wikiRoot)
 				return
 			}
 
@@ -127,6 +138,92 @@ func newMountedHandler(rawRoot, wikiRoot string) http.Handler {
 
 		http.NotFound(w, r)
 	})
+}
+
+func isSearchPath(requestPath string) bool {
+	return requestPath == "/search" || requestPath == "/search/status" || requestPath == "/search/reindex"
+}
+
+func handleSearch(w http.ResponseWriter, r *http.Request, searchService *search.Service) {
+	switch r.URL.Path {
+	case "/search":
+		handleSearchQuery(w, r, searchService)
+	case "/search/status":
+		handleSearchStatus(w, r, searchService)
+	case "/search/reindex":
+		handleSearchReindex(w, r, searchService)
+	default:
+		http.NotFound(w, r)
+	}
+}
+
+func handleSearchQuery(w http.ResponseWriter, r *http.Request, searchService *search.Service) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	query := strings.TrimSpace(r.URL.Query().Get("q"))
+	if query == "" {
+		http.Error(w, "missing search query", http.StatusBadRequest)
+		return
+	}
+
+	scope := strings.TrimSpace(r.URL.Query().Get("scope"))
+	if scope == "" {
+		scope = search.ScopeAll
+	}
+	if scope != search.ScopeAll && scope != search.ScopeRaw && scope != search.ScopeWiki {
+		http.Error(w, "invalid search scope", http.StatusBadRequest)
+		return
+	}
+
+	limit := 20
+	if value := strings.TrimSpace(r.URL.Query().Get("limit")); value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil || parsed < 1 || parsed > 100 {
+			http.Error(w, "invalid search limit", http.StatusBadRequest)
+			return
+		}
+		limit = parsed
+	}
+
+	result, err := searchService.Query(r.Context(), search.QueryOptions{Query: query, Scope: scope, Limit: limit})
+	if err != nil {
+		http.Error(w, "failed to search", http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+func handleSearchStatus(w http.ResponseWriter, r *http.Request, searchService *search.Service) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	writeJSON(w, http.StatusOK, searchService.Status())
+}
+
+func handleSearchReindex(w http.ResponseWriter, r *http.Request, searchService *search.Service) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if err := searchService.StartReindex(); err != nil {
+		if search.IsLocked(err) {
+			http.Error(w, "search index rebuild already in progress", http.StatusConflict)
+			return
+		}
+		http.Error(w, "failed to start search reindex", http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusAccepted, searchService.Status())
+}
+
+func writeJSON(w http.ResponseWriter, statusCode int, value any) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(statusCode)
+	_ = json.NewEncoder(w).Encode(value)
 }
 
 type rootFilteredFileSystem struct {
@@ -250,7 +347,7 @@ func stripMountPath(requestPath, mount string) string {
 	return strippedPath
 }
 
-func handleWikiPut(w http.ResponseWriter, r *http.Request, wikiRoot string) {
+func handleWikiPut(w http.ResponseWriter, r *http.Request, rawRoot, wikiRoot string) {
 	relPath, statusCode, msg := wikiRelativeMarkdownPath(r.URL.Path)
 	if statusCode != 0 {
 		http.Error(w, msg, statusCode)
@@ -299,6 +396,16 @@ func handleWikiPut(w http.ResponseWriter, r *http.Request, wikiRoot string) {
 		http.Error(w, "failed to refresh index", http.StatusInternalServerError)
 		return
 	}
+	if err := search.UpsertWikiDocument(r.Context(), rawRoot, relPath); err != nil {
+		http.Error(w, "failed to update search index", http.StatusInternalServerError)
+		return
+	}
+	if relPath != "index.md" {
+		if err := search.UpsertWikiDocument(r.Context(), rawRoot, "index.md"); err != nil {
+			http.Error(w, "failed to update search index", http.StatusInternalServerError)
+			return
+		}
+	}
 
 	if existed {
 		w.WriteHeader(http.StatusOK)
@@ -307,7 +414,7 @@ func handleWikiPut(w http.ResponseWriter, r *http.Request, wikiRoot string) {
 	w.WriteHeader(http.StatusCreated)
 }
 
-func handleWikiDelete(w http.ResponseWriter, r *http.Request, wikiRoot string) {
+func handleWikiDelete(w http.ResponseWriter, r *http.Request, rawRoot, wikiRoot string) {
 	relPath, statusCode, msg := wikiRelativeMarkdownPath(r.URL.Path)
 	if statusCode != 0 {
 		http.Error(w, msg, statusCode)
@@ -342,6 +449,16 @@ func handleWikiDelete(w http.ResponseWriter, r *http.Request, wikiRoot string) {
 	if relPath != "index.md" {
 		if err := refreshGeneratedIndex(wikiRoot); err != nil {
 			http.Error(w, "failed to refresh index", http.StatusInternalServerError)
+			return
+		}
+	}
+	if err := search.DeleteWikiDocument(r.Context(), rawRoot, relPath); err != nil {
+		http.Error(w, "failed to update search index", http.StatusInternalServerError)
+		return
+	}
+	if relPath != "index.md" {
+		if err := search.UpsertWikiDocument(r.Context(), rawRoot, "index.md"); err != nil {
+			http.Error(w, "failed to update search index", http.StatusInternalServerError)
 			return
 		}
 	}

@@ -153,7 +153,7 @@ Exit non-zero on:
 
 ## HTTP API
 
-Planned endpoints after the CLI rebuild path is stable:
+Implemented endpoints:
 
 ```text
 GET /search?q=...&scope=all|raw|wiki&limit=20
@@ -400,24 +400,33 @@ Phase 7: optional vectors.
 - [x] Design documented
 - [x] README linked to search roadmap
 - [x] AGENTS.md records canonical search plan location
-- [ ] Search package scaffolded
-- [ ] SQLite driver selected
-- [ ] SQLite schema implemented
-- [ ] Raw scanner implemented
-- [ ] Wiki scanner implemented
-- [ ] Exclusion rules implemented
-- [ ] CLI command group implemented
-- [ ] CLI rebuild implemented
-- [ ] CLI rebuild tests added
-- [ ] Lexical query implemented
-- [ ] HTTP search endpoint implemented
-- [ ] HTTP status endpoint implemented
-- [ ] HTTP reindex endpoint implemented
-- [ ] Wiki PUT/DELETE incremental indexing implemented
-- [ ] Graph/link metadata implemented
-- [ ] Vector roadmap revisited with provider decision
-- [ ] README updated with implemented user-facing behavior
-- [ ] AGENTS.md updated with verified implemented facts
+- [x] Search package scaffolded
+- [x] SQLite driver selected
+- [x] SQLite schema implemented
+- [x] Raw scanner implemented
+- [x] Wiki scanner implemented
+- [x] Exclusion rules implemented
+- [x] CLI command group implemented
+- [x] CLI rebuild implemented
+- [x] CLI rebuild tests added
+- [x] Lexical query implemented
+- [x] HTTP search endpoint implemented
+- [x] HTTP status endpoint implemented
+- [x] HTTP reindex endpoint implemented
+- [x] Wiki PUT/DELETE incremental indexing implemented
+- [x] Graph/link metadata implemented
+- [x] Vector roadmap revisited with provider decision
+- [x] README updated with implemented user-facing behavior
+- [x] AGENTS.md updated with verified implemented facts
+
+Implemented notes:
+
+- SQLite driver: `modernc.org/sqlite`.
+- Baseline search uses SQLite FTS5 through `internal/search`.
+- Default maximum indexed file size is 5 MiB.
+- Missing indexes do not auto-start a rebuild; use `alienshard index rebuild` or `POST /search/reindex`.
+- Search HTTP responses are JSON-only for all user agents.
+- No vector provider is selected. Vectors remain optional future functionality and are not required for baseline search.
 
 ## Resume Protocol
 
@@ -437,7 +446,7 @@ When resuming search work:
 Current general commands:
 
 ```bash
-rtk go test ./...
+go test ./...
 go run . serve --help
 ```
 
@@ -458,13 +467,8 @@ curl -i -X POST 'http://127.0.0.1:8000/search/reindex'
 
 ## Open Questions
 
-- Should a missing index auto-start a background rebuild during `serve`, or should users explicitly run `alienshard index rebuild` or `POST /search/reindex`?
-- Which SQLite driver should be used for Go 1.26.1 and the existing Docker target?
-- Is FTS5 available and acceptable in the selected driver/build configuration?
-- What default maximum file size should be indexed?
 - Should hidden user files be skipped by default beyond `.alienshard`?
-- Should search output eventually support Markdown rendering for browser user agents, or remain JSON-only?
-- Should HTTP `POST /search/reindex` require any local-only guard or future authentication story?
+- Should HTTP `POST /search/reindex` require a future authentication story before non-local deployments expose it broadly?
 
 ## Session Log
 
@@ -476,3 +480,6 @@ curl -i -X POST 'http://127.0.0.1:8000/search/reindex'
 - Decided that startup must not synchronously scan the full tree.
 - Decided that `alienshard index rebuild --home-dir /data` is a required offline administration command.
 - Decided to pursue persistent SQLite lexical search before graph ranking and optional vectors.
+- Implemented baseline search with `modernc.org/sqlite`, SQLite FTS5, offline rebuild, HTTP search/status/reindex endpoints, wiki mutation updates, and normalized markdown link metadata.
+- Decided not to auto-start indexing when an index is missing; search reports `not_indexed` until an explicit CLI or HTTP rebuild.
+- Left vectors as optional future work with no provider selected.

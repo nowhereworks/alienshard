@@ -6,26 +6,32 @@ This document collects commands and release conventions for working on Alien Sha
 
 - Go `1.26.1`
 - Docker, for image builds and container checks
-- `rtk`, for the repo's verified test command wrapper
 
 ## Commands
 
 Run tests:
 
 ```bash
-rtk go test ./...
+go test ./...
 ```
 
 Run tests with coverage:
 
 ```bash
-rtk go test ./... -coverprofile=coverage.out -covermode=atomic && go tool cover -func=coverage.out
+go test ./... -coverprofile=coverage.out -covermode=atomic && go tool cover -func=coverage.out
 ```
 
 Show serve help:
 
 ```bash
 go run . serve --help
+```
+
+Show index help and rebuild a local index:
+
+```bash
+go run . index --help
+go run . index rebuild --home-dir /tmp/alienshard-data
 ```
 
 Build the binary:
@@ -77,13 +83,13 @@ The smoke test verifies:
 
 ## Tests
 
-Tests cover command configuration, mount behavior, Markdown rendering, wiki mutation validation, autoindex behavior, Docker-sensitive file ownership assumptions, and helper functions.
+Tests cover command configuration, mount behavior, Markdown rendering, wiki mutation validation, autoindex behavior, search indexing/querying/reindexing, Docker-sensitive file ownership assumptions, and helper functions.
 
 For code changes:
 
 - Add or improve tests for changed behavior.
 - Prefer executable checks over prose-only assertions.
-- Run `rtk go test ./...` before considering the change complete.
+- Run `go test ./...` before considering the change complete.
 - Use coverage when touching behavior that has edge cases or release risk.
 
 ## Release Workflow
@@ -150,7 +156,7 @@ Current docs:
 | `docs/configuration.md` | Flags, environment variables, Docker defaults, and image tags. |
 | `docs/wiki.md` | Wiki storage, mutations, autoindex, and manual index behavior. |
 | `docs/llm-wiki.md` | Product concept and LLM-maintained wiki pattern. |
-| `docs/search.md` | Planned search design and implementation handoff. |
+| `docs/search.md` | Search design, implementation notes, and future roadmap. |
 | `docs/development.md` | Build, test, smoke, release, and documentation workflow. |
 
 Keep `CHANGELOG.md` brief and current with user-visible changes and notable project decisions.
