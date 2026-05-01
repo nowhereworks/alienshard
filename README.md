@@ -170,6 +170,16 @@ Attribution: the LLM Wiki concept is from Andrej Karpathy:
 - Raw layer: `/raw/*`
 - Writable wiki layer: `/wiki/*`
 
+## Search Roadmap
+
+Search is planned but not implemented yet. The current design target is persistent local search over both `/raw/*` and `/wiki/*`, with an offline rebuild command:
+
+```bash
+alienshard index rebuild --home-dir /data
+```
+
+The canonical design and implementation handoff document is `docs/search.md`.
+
 ## Development
 
 Run tests:
