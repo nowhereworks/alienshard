@@ -8,6 +8,7 @@ PORT="${PORT:-8001}"
 BIND="${BIND:-127.0.0.1}"
 PAGE_PATH="${ALIENSHARD_SMOKE_PAGE:-/wiki/__smoke/wiki-root.md}"
 PAGE_NAME="${PAGE_PATH##*/}"
+DELETE_PAGE_PATH="/wiki/__smoke/delete-me.md"
 BASE_URL="${ALIENSHARD_URL:-}"
 TMP_DIR=""
 SERVER_PID=""
@@ -74,6 +75,17 @@ curl -fsS \
 	-H 'Content-Type: text/markdown' \
 	--data-binary '# Wiki Smoke Test' \
 	"$BASE_URL$PAGE_PATH" >/dev/null
+
+curl -fsS \
+	-X PUT \
+	-H 'Content-Type: text/markdown' \
+	--data-binary '# Delete Smoke Test' \
+	"$BASE_URL$DELETE_PAGE_PATH" >/dev/null
+
+curl -fsS -X DELETE "$BASE_URL$DELETE_PAGE_PATH" >/dev/null
+if curl -fsS "$BASE_URL$DELETE_PAGE_PATH" >/dev/null 2>&1; then
+	fail "expected deleted wiki page to return non-200: $DELETE_PAGE_PATH"
+fi
 
 raw_html="$(curl -fsS -A 'Mozilla/5.0 Chrome/126.0' "$BASE_URL/raw")"
 if [[ "$raw_html" == *'href="__wiki/"'* ]]; then

@@ -101,6 +101,10 @@ func newMountedHandler(rawRoot, wikiRoot string) http.Handler {
 				handleWikiPut(w, r, wikiRoot)
 				return
 			}
+			if r.Method == http.MethodDelete {
+				handleWikiDelete(w, r, wikiRoot)
+				return
+			}
 
 			if r.Method != http.MethodGet && r.Method != http.MethodHead {
 				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -303,12 +307,54 @@ func handleWikiPut(w http.ResponseWriter, r *http.Request, wikiRoot string) {
 	w.WriteHeader(http.StatusCreated)
 }
 
+func handleWikiDelete(w http.ResponseWriter, r *http.Request, wikiRoot string) {
+	relPath, statusCode, msg := wikiRelativeMarkdownPath(r.URL.Path)
+	if statusCode != 0 {
+		http.Error(w, msg, statusCode)
+		return
+	}
+
+	filePath := filepath.Join(wikiRoot, filepath.FromSlash(relPath))
+	if !isPathWithinRoot(wikiRoot, filePath) {
+		http.Error(w, "invalid wiki path", http.StatusForbidden)
+		return
+	}
+
+	stat, err := os.Stat(filePath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			http.NotFound(w, r)
+			return
+		}
+		http.Error(w, "failed to inspect wiki file", http.StatusInternalServerError)
+		return
+	}
+	if stat.IsDir() {
+		http.Error(w, "cannot delete a directory", http.StatusBadRequest)
+		return
+	}
+
+	if err := os.Remove(filePath); err != nil {
+		http.Error(w, "failed to delete wiki file", http.StatusInternalServerError)
+		return
+	}
+
+	if relPath != "index.md" {
+		if err := refreshGeneratedIndex(wikiRoot); err != nil {
+			http.Error(w, "failed to refresh index", http.StatusInternalServerError)
+			return
+		}
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func wikiRelativeMarkdownPath(requestPath string) (string, int, string) {
 	if requestPath == "/wiki" || requestPath == "/wiki/" {
 		return "", http.StatusBadRequest, "wiki path must include a markdown file"
 	}
 	if !strings.HasPrefix(requestPath, "/wiki/") {
-		return "", http.StatusForbidden, "writes are only allowed under /wiki/"
+		return "", http.StatusForbidden, "wiki mutations are only allowed under /wiki/"
 	}
 
 	relPath := strings.TrimPrefix(requestPath, "/wiki/")
@@ -327,7 +373,7 @@ func wikiRelativeMarkdownPath(requestPath string) (string, int, string) {
 	}
 
 	if !strings.HasSuffix(strings.ToLower(relPath), ".md") {
-		return "", http.StatusBadRequest, "only .md files can be written under /wiki/"
+		return "", http.StatusBadRequest, "only .md files can be mutated under /wiki/"
 	}
 
 	return relPath, 0, ""

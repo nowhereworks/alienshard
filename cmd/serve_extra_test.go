@@ -344,6 +344,197 @@ func TestWikiPutFailsWhenFileCannotBeWritten(t *testing.T) {
 	}
 }
 
+func TestWikiDeleteRemovesMarkdownFile(t *testing.T) {
+	t.Parallel()
+
+	rawRoot := t.TempDir()
+	wikiRoot := filepath.Join(rawRoot, wikiDirName)
+	filePath := filepath.Join(wikiRoot, "nested", "page.md")
+	if err := os.MkdirAll(filepath.Dir(filePath), 0o755); err != nil {
+		t.Fatalf("os.MkdirAll returned error: %v", err)
+	}
+	if err := os.WriteFile(filePath, []byte("# Page"), 0o644); err != nil {
+		t.Fatalf("os.WriteFile returned error: %v", err)
+	}
+	handler := newMountedHandler(rawRoot, wikiRoot)
+
+	req := httptest.NewRequest(http.MethodDelete, "/wiki/nested/page.md", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want %d", rr.Code, http.StatusNoContent)
+	}
+	if _, err := os.Stat(filePath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("deleted file stat error = %v, want os.ErrNotExist", err)
+	}
+}
+
+func TestWikiDeleteMissingMarkdownReturnsNotFound(t *testing.T) {
+	t.Parallel()
+
+	rawRoot := t.TempDir()
+	wikiRoot := filepath.Join(rawRoot, wikiDirName)
+	handler := newMountedHandler(rawRoot, wikiRoot)
+
+	req := httptest.NewRequest(http.MethodDelete, "/wiki/missing.md", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want %d", rr.Code, http.StatusNotFound)
+	}
+}
+
+func TestWikiDeleteRejectsInvalidPaths(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		path       string
+		wantStatus int
+	}{
+		{name: "wiki root", path: "/wiki", wantStatus: http.StatusBadRequest},
+		{name: "directory", path: "/wiki/dir/", wantStatus: http.StatusBadRequest},
+		{name: "non markdown", path: "/wiki/page.txt", wantStatus: http.StatusBadRequest},
+		{name: "traversal", path: "/wiki/../page.md", wantStatus: http.StatusForbidden},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			rawRoot := t.TempDir()
+			wikiRoot := filepath.Join(rawRoot, wikiDirName)
+			handler := newMountedHandler(rawRoot, wikiRoot)
+
+			req := httptest.NewRequest(http.MethodDelete, tt.path, nil)
+			rr := httptest.NewRecorder()
+			handler.ServeHTTP(rr, req)
+
+			if rr.Code != tt.wantStatus {
+				t.Fatalf("status = %d, want %d", rr.Code, tt.wantStatus)
+			}
+		})
+	}
+}
+
+func TestWikiDeleteRejectsDirectoryTarget(t *testing.T) {
+	t.Parallel()
+
+	rawRoot := t.TempDir()
+	wikiRoot := filepath.Join(rawRoot, wikiDirName)
+	if err := os.MkdirAll(filepath.Join(wikiRoot, "folder.md"), 0o755); err != nil {
+		t.Fatalf("os.MkdirAll returned error: %v", err)
+	}
+	handler := newMountedHandler(rawRoot, wikiRoot)
+
+	req := httptest.NewRequest(http.MethodDelete, "/wiki/folder.md", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", rr.Code, http.StatusBadRequest)
+	}
+}
+
+func TestWikiDeleteRefreshesManagedIndex(t *testing.T) {
+	t.Parallel()
+
+	rawRoot := t.TempDir()
+	wikiRoot := filepath.Join(rawRoot, wikiDirName)
+	handler := newMountedHandler(rawRoot, wikiRoot)
+
+	for _, path := range []string{"/wiki/alpha.md", "/wiki/beta.md"} {
+		req := httptest.NewRequest(http.MethodPut, path, strings.NewReader("# Page"))
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+		if rr.Code != http.StatusCreated {
+			t.Fatalf("put %s status = %d, want %d", path, rr.Code, http.StatusCreated)
+		}
+	}
+
+	req := httptest.NewRequest(http.MethodDelete, "/wiki/beta.md", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("delete status = %d, want %d", rr.Code, http.StatusNoContent)
+	}
+
+	indexData, err := os.ReadFile(filepath.Join(wikiRoot, "index.md"))
+	if err != nil {
+		t.Fatalf("os.ReadFile returned error: %v", err)
+	}
+	index := string(indexData)
+	if !strings.HasPrefix(index, autoIndexMarker) {
+		t.Fatalf("expected generated index marker, got %q", index)
+	}
+	if !strings.Contains(index, "- [alpha](/wiki/alpha.md)") {
+		t.Fatalf("expected alpha entry after delete, got %q", index)
+	}
+	if strings.Contains(index, "beta") {
+		t.Fatalf("expected beta entry to be removed, got %q", index)
+	}
+}
+
+func TestWikiDeleteDoesNotModifyManualIndex(t *testing.T) {
+	t.Parallel()
+
+	rawRoot := t.TempDir()
+	wikiRoot := filepath.Join(rawRoot, wikiDirName)
+	if err := os.MkdirAll(wikiRoot, 0o755); err != nil {
+		t.Fatalf("os.MkdirAll returned error: %v", err)
+	}
+	manualIndex := "# Manual\n\n- keep this\n"
+	if err := os.WriteFile(filepath.Join(wikiRoot, "index.md"), []byte(manualIndex), 0o644); err != nil {
+		t.Fatalf("os.WriteFile returned error: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(wikiRoot, "page.md"), []byte("# Page"), 0o644); err != nil {
+		t.Fatalf("os.WriteFile returned error: %v", err)
+	}
+	handler := newMountedHandler(rawRoot, wikiRoot)
+
+	req := httptest.NewRequest(http.MethodDelete, "/wiki/page.md", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("delete status = %d, want %d", rr.Code, http.StatusNoContent)
+	}
+
+	indexData, err := os.ReadFile(filepath.Join(wikiRoot, "index.md"))
+	if err != nil {
+		t.Fatalf("os.ReadFile returned error: %v", err)
+	}
+	if string(indexData) != manualIndex {
+		t.Fatalf("index.md changed unexpectedly: got %q want %q", string(indexData), manualIndex)
+	}
+}
+
+func TestWikiDeleteIndexRemovesFileWithoutImmediateRegeneration(t *testing.T) {
+	t.Parallel()
+
+	rawRoot := t.TempDir()
+	wikiRoot := filepath.Join(rawRoot, wikiDirName)
+	if err := os.MkdirAll(wikiRoot, 0o755); err != nil {
+		t.Fatalf("os.MkdirAll returned error: %v", err)
+	}
+	indexPath := filepath.Join(wikiRoot, "index.md")
+	if err := os.WriteFile(indexPath, []byte(autoIndexMarker+"\n\n# Index\n"), 0o644); err != nil {
+		t.Fatalf("os.WriteFile returned error: %v", err)
+	}
+	handler := newMountedHandler(rawRoot, wikiRoot)
+
+	req := httptest.NewRequest(http.MethodDelete, "/wiki/index.md", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("delete status = %d, want %d", rr.Code, http.StatusNoContent)
+	}
+	if _, err := os.Stat(indexPath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("deleted index stat error = %v, want os.ErrNotExist", err)
+	}
+}
+
 func TestWikiRelativeMarkdownPathValidation(t *testing.T) {
 	t.Parallel()
 

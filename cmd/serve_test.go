@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -286,6 +287,36 @@ func TestWikiPutCreatesAndUpdatesMarkdownFile(t *testing.T) {
 
 	if updateRR.Code != http.StatusOK {
 		t.Fatalf("update status = %d, want %d", updateRR.Code, http.StatusOK)
+	}
+}
+
+func TestWikiPutCreatesMissingParentDirectories(t *testing.T) {
+	t.Parallel()
+
+	rawRoot := t.TempDir()
+	wikiRoot := filepath.Join(rawRoot, wikiDirName)
+	handler := newMountedHandler(rawRoot, wikiRoot)
+
+	wikiPath := "long/path/that/still/does/not/exists.md"
+	diskPath := filepath.Join(wikiRoot, filepath.FromSlash(wikiPath))
+	if _, err := os.Stat(filepath.Dir(diskPath)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("parent directory exists before PUT or stat failed: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPut, "/wiki/"+wikiPath, strings.NewReader("# Nested"))
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want %d", rr.Code, http.StatusCreated)
+	}
+
+	data, err := os.ReadFile(diskPath)
+	if err != nil {
+		t.Fatalf("os.ReadFile returned error: %v", err)
+	}
+	if string(data) != "# Nested" {
+		t.Fatalf("wiki file content = %q, want %q", string(data), "# Nested")
 	}
 }
 

@@ -28,18 +28,20 @@ you browse them directly in a browser.
 - Markdown rendering policy on both mounts:
   - `User-Agent` contains `chrome` or `firefox` -> rendered HTML
   - otherwise -> raw Markdown
-- Wiki write API:
+- Wiki mutation API:
   - `PUT /wiki/<path>.md` creates/updates markdown files
+  - `DELETE /wiki/<path>.md` deletes markdown files
   - parent directories are created automatically
   - returns `201` on create, `200` on update
+  - returns `204` on delete and `404` when deleting a missing page
 - Auto-managed wiki index:
   - generated marker: `<!-- alienshard:autoindex v1 -->`
   - `index.md` is auto-created when missing
   - `/wiki`, `/wiki/`, and `/wiki/index.md` serve the managed wiki index
-  - refreshed on read and after every successful wiki write when marker is present
+  - refreshed on read and after every successful wiki mutation when marker is present
   - manual `index.md` (no marker) is never overwritten
 - Safety:
-  - traversal-like wiki write paths are rejected
+  - traversal-like wiki mutation paths are rejected
   - `/raw/__wiki` is blocked with `404` (wiki is only reachable via `/wiki/*`)
   - `/raw` directory listings skip root-level `__wiki`
 
@@ -145,6 +147,13 @@ Write a wiki page:
 curl -i -X PUT \
   -H "Content-Type: text/markdown" \
   --data-binary "# Project Notes\n\nInitial draft." \
+  http://127.0.0.1:8000/wiki/project/notes.md
+```
+
+Delete a wiki page:
+
+```bash
+curl -i -X DELETE \
   http://127.0.0.1:8000/wiki/project/notes.md
 ```
 

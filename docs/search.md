@@ -204,7 +204,7 @@ There are three reindex paths.
 | --- | --- | --- |
 | Full CLI rebuild | `alienshard index rebuild --home-dir /data` | Build a new SQLite DB by scanning raw and wiki, then atomically replace the active index. |
 | Full HTTP rebuild | `POST /search/reindex` | Same core rebuild function, but runs in the server background and reports status. |
-| Single-document update | successful `PUT /wiki/<path>.md` | Update or delete one wiki document's index rows after the file write succeeds. |
+| Single-document update | successful `PUT /wiki/<path>.md` or `DELETE /wiki/<path>.md` | Upsert or delete one wiki document's index rows after the mutation succeeds. |
 
 The CLI and HTTP rebuild implementations should share one core function, for example:
 
@@ -377,8 +377,8 @@ Phase 4: server search endpoints.
 Phase 5: incremental wiki indexing.
 
 - Hook successful `PUT /wiki/<path>.md` into single-document index updates.
-- Remove document rows if a future delete API is added.
-- Add tests proving wiki writes update searchable content.
+- Hook successful `DELETE /wiki/<path>.md` into single-document index deletes.
+- Add tests proving wiki mutations update searchable content.
 
 Phase 6: graph metadata.
 
@@ -413,7 +413,7 @@ Phase 7: optional vectors.
 - [ ] HTTP search endpoint implemented
 - [ ] HTTP status endpoint implemented
 - [ ] HTTP reindex endpoint implemented
-- [ ] Wiki PUT incremental indexing implemented
+- [ ] Wiki PUT/DELETE incremental indexing implemented
 - [ ] Graph/link metadata implemented
 - [ ] Vector roadmap revisited with provider decision
 - [ ] README updated with implemented user-facing behavior

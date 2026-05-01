@@ -2,7 +2,7 @@
 
 Use this skill when the user asks to use Alienshard, shared wiki notes, agent handoff notes, or workspace files over HTTP.
 
-Alienshard exposes a local HTTP interface for reading raw workspace files and reading or writing Markdown wiki pages. Do not guess a server URL. Resolve it with the workflow below before using Alienshard.
+Alienshard exposes a local HTTP interface for reading raw workspace files and reading, writing, or deleting Markdown wiki pages. Do not guess a server URL. Resolve it with the workflow below before using Alienshard.
 
 ## Resolve The URL
 
@@ -57,6 +57,7 @@ If both fail, report that Alienshard was not reachable. Include the resolved URL
 - `GET /raw/<path>` reads files from the served raw root.
 - `GET /wiki/<path>.md` reads wiki Markdown.
 - `PUT /wiki/<path>.md` creates or updates wiki Markdown.
+- `DELETE /wiki/<path>.md` deletes wiki Markdown.
 - `/raw/__wiki` and `/raw/__wiki/*` are intentionally blocked.
 - Wiki files are stored under the server's `__wiki` directory, but clients should access them via `/wiki/*`.
 
@@ -95,6 +96,23 @@ Rules for writes:
 - Treat HTTP `201` as created and HTTP `200` as updated.
 - Prefer writing durable notes, investigation findings, and agent handoff context to `/wiki/*`.
 - Do not write secrets, credentials, tokens, or private environment values.
+
+## Delete Examples
+
+Delete a wiki Markdown page:
+
+```bash
+ALIENSHARD_URL="$(./skill/scripts/resolve-alienshard-url.sh)"
+curl -fsS -X DELETE \
+  "$ALIENSHARD_URL/wiki/path/to/note.md"
+```
+
+Rules for deletes:
+
+- Only delete `.md` paths.
+- Do not use traversal-like paths such as `../secret.md`.
+- Treat HTTP `204` as deleted and HTTP `404` as already missing.
+- Do not delete durable wiki notes unless the user asked for removal or the page is clearly obsolete/generated test content.
 
 ## Failure Handling
 
