@@ -4,6 +4,7 @@ Brief record of user-visible changes and notable project decisions.
 
 ## Unreleased
 
+- Made the documentation site use a dark theme by default, with a light-mode toggle.
 - Added flat namespaces with canonical `/n/<namespace>/raw`, `/n/<namespace>/wiki`, and `/n/<namespace>/search` routes, plus default aliases for existing `/raw`, `/wiki`, and `/search` URLs.
 - Added `ALIEN_NAMESPACE` and `--namespace` support for namespace-specific search rebuilds, with isolated non-default storage under `__namespaces/<namespace>`.
 - Standardized project-owned environment variables on the `ALIEN_` prefix and removed unprefixed/`ALIENSHARD_` serve configuration names.
