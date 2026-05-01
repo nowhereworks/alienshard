@@ -10,40 +10,14 @@
 
 Alien Shard is a lightweight Go server for mixed human + machine Markdown workflows.
 
-- Humans (browser user-agents) get rendered HTML for `.md` files.
-- Machines (agents, curl, scripts) get raw Markdown for `.md` files.
-- One process serves immutable raw sources and a writable wiki layer.
+- Humans using Chrome or Firefox get rendered HTML for `.md` files.
+- Machines, agents, curl, and scripts get raw Markdown for `.md` files.
+- One process serves raw source files and a writable wiki layer.
 
 ## Why
 
 Most tooling makes you pick one mode: static site for humans, API output for machines.
-Alien Shard keeps both in the same place so an LLM can write and maintain wiki pages while
-you browse them directly in a browser.
-
-## Features
-
-- Explicit dual mounts:
-  - `/raw/*` -> raw source tree (`--home-dir` or current directory)
-  - `/wiki/*` -> wiki tree at `rawRoot/__wiki`
-- Markdown rendering policy on both mounts:
-  - `User-Agent` contains `chrome` or `firefox` -> rendered HTML
-  - otherwise -> raw Markdown
-- Wiki mutation API:
-  - `PUT /wiki/<path>.md` creates/updates markdown files
-  - `DELETE /wiki/<path>.md` deletes markdown files
-  - parent directories are created automatically
-  - returns `201` on create, `200` on update
-  - returns `204` on delete and `404` when deleting a missing page
-- Auto-managed wiki index:
-  - generated marker: `<!-- alienshard:autoindex v1 -->`
-  - `index.md` is auto-created when missing
-  - `/wiki`, `/wiki/`, and `/wiki/index.md` serve the managed wiki index
-  - refreshed on read and after every successful wiki mutation when marker is present
-  - manual `index.md` (no marker) is never overwritten
-- Safety:
-  - traversal-like wiki mutation paths are rejected
-  - `/raw/__wiki` is blocked with `404` (wiki is only reachable via `/wiki/*`)
-  - `/raw` directory listings skip root-level `__wiki`
+Alien Shard keeps both in the same place so an LLM can write and maintain wiki pages while you browse them directly in a browser.
 
 ## Quick Start
 
@@ -52,7 +26,7 @@ Requirements:
 - Go `1.26.1`
 - Docker, for container usage
 
-Run:
+Run locally:
 
 ```bash
 go run . serve
@@ -66,76 +40,12 @@ go run . serve --home-dir /tmp
 
 By default the server binds to `127.0.0.1:8000`.
 
-Run the wiki root smoke test against a fresh local build on port `8001`:
+Open in a browser:
 
-```bash
-make smoke-wiki
-```
+- `http://127.0.0.1:8000/raw/`
+- `http://127.0.0.1:8000/wiki`
 
-Run the same smoke test against an already running server:
-
-```bash
-ALIENSHARD_URL=http://127.0.0.1:8001 make smoke-wiki
-```
-
-## Container
-
-Build the image:
-
-```bash
-docker build -t alienshard .
-```
-
-Run the latest published `main` branch image from Docker Hub with the current directory mounted as the served data root:
-
-```bash
-docker run --rm \
-  -p 8000:8000 \
-  -v "$PWD:/data" \
-  nowhereworks/alienshard:edge
-```
-
-The container serves `/data`, binds to `0.0.0.0:8000`, and writes wiki pages under
-the mounted `/data/__wiki` directory.
-
-The image runs as UID/GID `1000` so files written to common Linux bind mounts are
-owned by the host user instead of root. If your mounted directory is owned by a
-different user, pass `--user "$(id -u):$(id -g)"` to `docker run`.
-
-Override container options with environment variables:
-
-```bash
-docker run --rm \
-  -p 9000:9000 \
-  -e PORT=9000 \
-  -v "$PWD:/data" \
-  nowhereworks/alienshard:edge
-```
-
-Use `nowhereworks/alienshard:latest` after a stable `v*` release has published.
-
-Published image tags:
-
-- `latest`: latest stable `v*` release
-- `vX.Y.Z`: exact stable release tag
-- `X.Y.Z`, `X.Y`, `X`: semver aliases for stable releases
-- `edge`: latest successful `main` branch release
-- `main`: latest successful `main` branch release
-- `sha-<shortsha>`: exact `main` branch build
-
-## Command Options
-
-```text
---home-dir string   Directory to serve (env HOME_DIR, default current directory)
---bind string       IP address to bind (env BIND, default "127.0.0.1")
---port int          TCP port to bind (env PORT, default 8000)
-```
-
-## API Examples
-
-Assume server is running on `http://127.0.0.1:8000`.
-
-Read raw markdown as a machine client:
+Read Markdown as a machine client:
 
 ```bash
 curl -sS http://127.0.0.1:8000/raw/notes.md
@@ -157,44 +67,58 @@ curl -i -X DELETE \
   http://127.0.0.1:8000/wiki/project/notes.md
 ```
 
-Read wiki index (auto-created if missing):
+## Container
+
+Run the latest published `main` branch image from Docker Hub with the current directory mounted as the served data root:
 
 ```bash
-curl -sS http://127.0.0.1:8000/wiki
+docker run --rm \
+  -p 8000:8000 \
+  -v "$PWD:/data" \
+  nowhereworks/alienshard:edge
 ```
 
-Open these URLs in a browser to view rendered HTML:
+The container serves `/data`, binds to `0.0.0.0:8000`, and writes wiki pages under `/data/__wiki`.
 
-- `http://127.0.0.1:8000/raw/.../*.md`
-- `http://127.0.0.1:8000/wiki/.../*.md`
-
-## LLM Wiki Pattern
-
-This project is designed to support persistent, LLM-maintained wiki workflows.
-
-Attribution: the LLM Wiki concept is from Andrej Karpathy:
-`https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f`
-
-- Concept document: `docs/llm-wiki.md`
-- Raw layer: `/raw/*`
-- Writable wiki layer: `/wiki/*`
-
-## Search Roadmap
-
-Search is planned but not implemented yet. The current design target is persistent local search over both `/raw/*` and `/wiki/*`, with an offline rebuild command:
+Build locally:
 
 ```bash
-alienshard index rebuild --home-dir /data
+docker build -t alienshard .
 ```
 
-The canonical design and implementation handoff document is `docs/search.md`.
+Use `nowhereworks/alienshard:latest` after a stable `v*` release has published.
+
+## Command Options
+
+```text
+--home-dir string   Directory to serve (env HOME_DIR, default current directory)
+--bind string       IP address to bind (env BIND, default "127.0.0.1")
+--port int          TCP port to bind (env PORT, default 8000)
+```
+
+Legacy `ALIENSHARD_HOME_DIR`, `ALIENSHARD_BIND`, and `ALIENSHARD_PORT` environment variables are also accepted.
+
+## Documentation
+
+- HTTP API reference: `docs/http-api.md`
+- Configuration and containers: `docs/configuration.md`
+- Wiki behavior and autoindex: `docs/wiki.md`
+- Development and release workflow: `docs/development.md`
+- LLM Wiki pattern: `docs/llm-wiki.md`
+- Search roadmap: `docs/search.md`
 
 ## Development
 
 Run tests:
 
 ```bash
-go test ./...
+rtk go test ./...
+```
+
+Run the wiki smoke test:
+
+```bash
+make smoke-wiki
 ```
 
 Show CLI help:
