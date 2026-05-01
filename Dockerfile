@@ -20,9 +20,9 @@ COPY --from=build /out/alienshard /usr/local/bin/alienshard
 USER alienshard
 WORKDIR /data
 
-ENV HOME_DIR=/data \
-    BIND=0.0.0.0 \
-    PORT=8000
+ENV ALIEN_HOME_DIR=/data \
+    ALIEN_BIND=0.0.0.0 \
+    ALIEN_PORT=8000
 
 EXPOSE 8000
 

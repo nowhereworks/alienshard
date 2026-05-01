@@ -4,7 +4,7 @@ set -euo pipefail
 normalize_url() {
   local url="$1"
 
-  url="${url#ALIENSHARD_URL=}"
+  url="${url#ALIEN_URL=}"
   url="${url%%[[:space:]]*}"
   url="${url%/}"
 
@@ -32,7 +32,7 @@ extract_from_agents() {
     return 1
   fi
 
-  line="$(grep -Eim1 '^ALIENSHARD_URL=' "$file" || true)"
+  line="$(grep -Eim1 '^ALIEN_URL=' "$file" || true)"
   if [ -n "$line" ]; then
     normalize_url "$line"
     return
@@ -52,8 +52,8 @@ extract_from_agents() {
   normalize_url "$line"
 }
 
-if [ -n "${ALIENSHARD_URL:-}" ]; then
-  normalize_url "$ALIENSHARD_URL"
+if [ -n "${ALIEN_URL:-}" ]; then
+  normalize_url "$ALIEN_URL"
   exit
 fi
 

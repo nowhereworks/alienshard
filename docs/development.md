@@ -69,7 +69,7 @@ make smoke-wiki
 Run the same smoke test against an already running server:
 
 ```bash
-ALIENSHARD_URL=http://127.0.0.1:8001 make smoke-wiki
+ALIEN_URL=http://127.0.0.1:8001 make smoke-wiki
 ```
 
 The smoke test verifies:

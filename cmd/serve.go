@@ -31,9 +31,9 @@ const (
 	homeDirKey      = "home_dir"
 	bindKey         = "bind"
 	portKey         = "port"
-	homeDirEnv      = "HOME_DIR"
-	bindEnv         = "BIND"
-	portEnv         = "PORT"
+	homeDirEnv      = "ALIEN_HOME_DIR"
+	bindEnv         = "ALIEN_BIND"
+	portEnv         = "ALIEN_PORT"
 )
 
 var serveViper = viper.New()
@@ -685,11 +685,11 @@ func init() {
 }
 
 func configureServeViper(config *viper.Viper) {
-	config.SetEnvPrefix("alienshard")
+	config.SetEnvPrefix("alien")
 	config.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
-	mustBindEnv(config, homeDirKey, homeDirEnv, "ALIENSHARD_HOME_DIR")
-	mustBindEnv(config, bindKey, bindEnv, "ALIENSHARD_BIND")
-	mustBindEnv(config, portKey, portEnv, "ALIENSHARD_PORT")
+	mustBindEnv(config, homeDirKey, homeDirEnv)
+	mustBindEnv(config, bindKey, bindEnv)
+	mustBindEnv(config, portKey, portEnv)
 	config.AutomaticEnv()
 
 	config.SetDefault(bindKey, defaultBind)

@@ -4,12 +4,12 @@ set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 
-PORT="${PORT:-8001}"
-BIND="${BIND:-127.0.0.1}"
-PAGE_PATH="${ALIENSHARD_SMOKE_PAGE:-/wiki/__smoke/wiki-root.md}"
+ALIEN_PORT="${ALIEN_PORT:-8001}"
+ALIEN_BIND="${ALIEN_BIND:-127.0.0.1}"
+PAGE_PATH="${ALIEN_SMOKE_PAGE:-/wiki/__smoke/wiki-root.md}"
 PAGE_NAME="${PAGE_PATH##*/}"
 DELETE_PAGE_PATH="/wiki/__smoke/delete-me.md"
-BASE_URL="${ALIENSHARD_URL:-}"
+BASE_URL="${ALIEN_URL:-}"
 TMP_DIR=""
 SERVER_PID=""
 LOG_FILE=""
@@ -39,14 +39,14 @@ trap cleanup EXIT
 if [[ -z "$BASE_URL" ]]; then
 	TMP_DIR="$(mktemp -d)"
 	LOG_FILE="$TMP_DIR/server.log"
-	HOME_DIR="$TMP_DIR/data"
+	ALIEN_HOME_DIR="$TMP_DIR/data"
 	BIN="$TMP_DIR/alienshard"
-	mkdir -p "$HOME_DIR"
+	mkdir -p "$ALIEN_HOME_DIR"
 
 	(cd "$REPO_ROOT" && go build -o "$BIN" .)
-	HOME_DIR="$HOME_DIR" BIND="$BIND" PORT="$PORT" "$BIN" serve >"$LOG_FILE" 2>&1 &
+	ALIEN_HOME_DIR="$ALIEN_HOME_DIR" ALIEN_BIND="$ALIEN_BIND" ALIEN_PORT="$ALIEN_PORT" "$BIN" serve >"$LOG_FILE" 2>&1 &
 	SERVER_PID="$!"
-	BASE_URL="http://$BIND:$PORT"
+	BASE_URL="http://$ALIEN_BIND:$ALIEN_PORT"
 
 	for _ in {1..50}; do
 		if curl -fsS "$BASE_URL/raw/" >/dev/null 2>&1; then
@@ -67,7 +67,7 @@ fi
 
 case "$PAGE_PATH" in
 	/wiki/*.md) ;;
-	*) fail "ALIENSHARD_SMOKE_PAGE must look like /wiki/<path>.md" ;;
+	*) fail "ALIEN_SMOKE_PAGE must look like /wiki/<path>.md" ;;
 esac
 
 curl -fsS \

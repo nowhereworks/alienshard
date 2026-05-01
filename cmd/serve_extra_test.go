@@ -116,23 +116,25 @@ func TestServeCommandUsesEnvironmentConfiguration(t *testing.T) {
 	}
 }
 
-func TestServeConfigurationAcceptsPrefixedEnvironmentVariables(t *testing.T) {
-	homeDir := t.TempDir()
-	t.Setenv("ALIENSHARD_HOME_DIR", homeDir)
-	t.Setenv("ALIENSHARD_BIND", "127.0.0.1")
-	t.Setenv("ALIENSHARD_PORT", "12347")
+func TestServeConfigurationIgnoresLegacyEnvironmentVariables(t *testing.T) {
+	t.Setenv("HOME_DIR", t.TempDir())
+	t.Setenv("BIND", "192.0.2.1")
+	t.Setenv("PORT", "12347")
+	t.Setenv("ALIENSHARD_HOME_DIR", t.TempDir())
+	t.Setenv("ALIENSHARD_BIND", "192.0.2.2")
+	t.Setenv("ALIENSHARD_PORT", "12348")
 
 	config := viper.New()
 	configureServeViper(config)
 
-	if got := config.GetString(homeDirKey); got != homeDir {
-		t.Fatalf("home dir = %q, want %q", got, homeDir)
+	if got := config.GetString(homeDirKey); got != "" {
+		t.Fatalf("home dir = %q, want empty", got)
 	}
-	if got := config.GetString(bindKey); got != "127.0.0.1" {
-		t.Fatalf("bind = %q, want %q", got, "127.0.0.1")
+	if got := config.GetString(bindKey); got != defaultBind {
+		t.Fatalf("bind = %q, want %q", got, defaultBind)
 	}
-	if got := config.GetInt(portKey); got != 12347 {
-		t.Fatalf("port = %d, want %d", got, 12347)
+	if got := config.GetInt(portKey); got != defaultPort {
+		t.Fatalf("port = %d, want %d", got, defaultPort)
 	}
 }
 

@@ -12,17 +12,9 @@ Flags:
 
 | Flag | Environment | Default | Description |
 | --- | --- | --- | --- |
-| `--home-dir` | `HOME_DIR` | Current working directory | Directory served as `rawRoot`. |
-| `--bind` | `BIND` | `127.0.0.1` | IP address to bind. |
-| `--port` | `PORT` | `8000` | TCP port to bind. |
-
-Legacy prefixed environment variables are also accepted:
-
-| Current | Legacy |
-| --- | --- |
-| `HOME_DIR` | `ALIENSHARD_HOME_DIR` |
-| `BIND` | `ALIENSHARD_BIND` |
-| `PORT` | `ALIENSHARD_PORT` |
+| `--home-dir` | `ALIEN_HOME_DIR` | Current working directory | Directory served as `rawRoot`. |
+| `--bind` | `ALIEN_BIND` | `127.0.0.1` | IP address to bind. |
+| `--port` | `ALIEN_PORT` | `8000` | TCP port to bind. |
 
 Examples:
 
@@ -31,7 +23,7 @@ alienshard serve --home-dir /data --bind 127.0.0.1 --port 8000
 ```
 
 ```bash
-HOME_DIR=/data BIND=0.0.0.0 PORT=9000 alienshard serve
+ALIEN_HOME_DIR=/data ALIEN_BIND=0.0.0.0 ALIEN_PORT=9000 alienshard serve
 ```
 
 ## Validation
@@ -88,9 +80,9 @@ Container defaults:
 
 | Setting | Value |
 | --- | --- |
-| `HOME_DIR` | `/data` |
-| `BIND` | `0.0.0.0` |
-| `PORT` | `8000` |
+| `ALIEN_HOME_DIR` | `/data` |
+| `ALIEN_BIND` | `0.0.0.0` |
+| `ALIEN_PORT` | `8000` |
 | User | `alienshard` UID/GID `1000` |
 | Workdir | `/data` |
 
@@ -109,7 +101,7 @@ Override container options with environment variables:
 ```bash
 docker run --rm \
   -p 9000:9000 \
-  -e PORT=9000 \
+  -e ALIEN_PORT=9000 \
   -v "$PWD:/data" \
   nowhereworks/alienshard:edge
 ```

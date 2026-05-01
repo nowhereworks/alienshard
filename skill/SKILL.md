@@ -8,19 +8,19 @@ Alienshard exposes a local HTTP interface for reading raw workspace files and re
 
 Resolve the Alienshard base URL in this order:
 
-1. Use the `ALIENSHARD_URL` environment variable when present.
+1. Use the `ALIEN_URL` environment variable when present.
 2. Search the workspace `AGENTS.md` for an explicit Alienshard URL.
 3. Fall back to `http://127.0.0.1:8000`.
 
 Only accept explicit `AGENTS.md` forms such as:
 
 ```md
-ALIENSHARD_URL=http://127.0.0.1:8000
+ALIEN_URL=http://127.0.0.1:8000
 Alienshard URL: http://127.0.0.1:8000
 alienshard: http://127.0.0.1:8000
 ```
 
-If multiple entries are present, prefer the first explicit `ALIENSHARD_URL=` entry. Otherwise use the first explicit Alienshard URL.
+If multiple entries are present, prefer the first explicit `ALIEN_URL=` entry. Otherwise use the first explicit Alienshard URL.
 
 Normalize the selected URL:
 
@@ -40,14 +40,14 @@ You can use the bundled helper:
 Probe Alienshard before relying on it:
 
 ```bash
-ALIENSHARD_URL="$(./skill/scripts/resolve-alienshard-url.sh)"
-curl -fsS "$ALIENSHARD_URL/wiki/index.md"
+ALIEN_URL="$(./skill/scripts/resolve-alienshard-url.sh)"
+curl -fsS "$ALIEN_URL/wiki/index.md"
 ```
 
 If that fails, optionally probe the raw mount:
 
 ```bash
-curl -fsS "$ALIENSHARD_URL/raw/"
+curl -fsS "$ALIEN_URL/raw/"
 ```
 
 If both fail, report that Alienshard was not reachable. Include the resolved URL and where it came from if known.
@@ -66,15 +66,15 @@ If both fail, report that Alienshard was not reachable. Include the resolved URL
 Read a workspace file:
 
 ```bash
-ALIENSHARD_URL="$(./skill/scripts/resolve-alienshard-url.sh)"
-curl -fsS "$ALIENSHARD_URL/raw/README.md"
+ALIEN_URL="$(./skill/scripts/resolve-alienshard-url.sh)"
+curl -fsS "$ALIEN_URL/raw/README.md"
 ```
 
 Read a wiki page:
 
 ```bash
-ALIENSHARD_URL="$(./skill/scripts/resolve-alienshard-url.sh)"
-curl -fsS "$ALIENSHARD_URL/wiki/index.md"
+ALIEN_URL="$(./skill/scripts/resolve-alienshard-url.sh)"
+curl -fsS "$ALIEN_URL/wiki/index.md"
 ```
 
 ## Write Examples
@@ -82,11 +82,11 @@ curl -fsS "$ALIENSHARD_URL/wiki/index.md"
 Create or update a wiki Markdown page:
 
 ```bash
-ALIENSHARD_URL="$(./skill/scripts/resolve-alienshard-url.sh)"
+ALIEN_URL="$(./skill/scripts/resolve-alienshard-url.sh)"
 curl -fsS -X PUT \
   -H 'Content-Type: text/markdown; charset=utf-8' \
   --data-binary @note.md \
-  "$ALIENSHARD_URL/wiki/path/to/note.md"
+  "$ALIEN_URL/wiki/path/to/note.md"
 ```
 
 Rules for writes:
@@ -102,9 +102,9 @@ Rules for writes:
 Delete a wiki Markdown page:
 
 ```bash
-ALIENSHARD_URL="$(./skill/scripts/resolve-alienshard-url.sh)"
+ALIEN_URL="$(./skill/scripts/resolve-alienshard-url.sh)"
 curl -fsS -X DELETE \
-  "$ALIENSHARD_URL/wiki/path/to/note.md"
+  "$ALIEN_URL/wiki/path/to/note.md"
 ```
 
 Rules for deletes:
@@ -119,6 +119,6 @@ Rules for deletes:
 When Alienshard cannot be reached:
 
 - State the resolved URL.
-- State whether it came from `ALIENSHARD_URL`, `AGENTS.md`, or fallback if known.
+- State whether it came from `ALIEN_URL`, `AGENTS.md`, or fallback if known.
 - Include the failed probe endpoint.
 - Do not silently keep trying alternate guessed hosts.

@@ -22,7 +22,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  IMAGE_NAME: nowhereworks/alienshard
+  ALIEN_IMAGE_NAME: nowhereworks/alienshard
 
 jobs:
   test:
@@ -203,7 +203,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.IMAGE_NAME }}
+          images: ${{ env.ALIEN_IMAGE_NAME }}
           tags: |
             type=raw,value=edge,enable=${{ github.ref == 'refs/heads/main' }}
             type=raw,value=main,enable=${{ github.ref == 'refs/heads/main' }}

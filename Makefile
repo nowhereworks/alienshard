@@ -13,4 +13,4 @@ install: build
 	go install .
 
 smoke-wiki:
-	PORT=8001 scripts/smoke-wiki-root.sh
+	ALIEN_PORT=8001 scripts/smoke-wiki-root.sh

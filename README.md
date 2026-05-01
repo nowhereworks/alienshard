@@ -105,12 +105,10 @@ Use `nowhereworks/alienshard:latest` after a stable `v*` release has published.
 Serve options:
 
 ```text
---home-dir string   Directory to serve (env HOME_DIR, default current directory)
---bind string       IP address to bind (env BIND, default "127.0.0.1")
---port int          TCP port to bind (env PORT, default 8000)
+--home-dir string   Directory to serve (env ALIEN_HOME_DIR, default current directory)
+--bind string       IP address to bind (env ALIEN_BIND, default "127.0.0.1")
+--port int          TCP port to bind (env ALIEN_PORT, default 8000)
 ```
-
-Legacy `ALIENSHARD_HOME_DIR`, `ALIENSHARD_BIND`, and `ALIENSHARD_PORT` environment variables are also accepted.
 
 Index rebuild options:
 
